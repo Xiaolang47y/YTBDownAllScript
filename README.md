@@ -1,17 +1,11 @@
-# Youtube-MKV-ART-JPG-Download-Script
 油管视频+中英字幕+封面一键下载脚本，来自Deepseek氛围编程。
 
 需要ffmpeg与yt-dlp
 
-
 运行后：
-
-    输入Youtube的视频链接
-    
+    输入Youtube的视频链接并确认
     自动下载视频封面并转换为jpg格式
-    
     自动下载自动生成的字幕并转换为art格式
-    
     自动下载最高画质+最高音频的合并视频
     
 
