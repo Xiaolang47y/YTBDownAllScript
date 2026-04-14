@@ -4,19 +4,16 @@
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# 显示欢迎信息
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}      YouTube 智能下载工具 v2.1        ${NC}"
+echo -e "${GREEN}      YouTube 智能下载工具 v2.8        ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-# 提示用户输入视频链接
 echo -e "${YELLOW}请输入 YouTube 视频链接:${NC}"
 read -p "👉 " video_url
 
-# 检查是否输入了链接
 if [ -z "$video_url" ]; then
     echo -e "${RED}错误：未输入视频链接！${NC}"
     exit 1
@@ -26,9 +23,10 @@ echo ""
 echo -e "${GREEN}开始下载视频...${NC}"
 echo ""
 
-# 下载视频
 yt-dlp \
   --cookies-from-browser firefox \
+  --no-check-certificates \
+  --extractor-args "youtubetab:skip=authcheck" \
   --format "bestvideo+bestaudio/best" \
   --merge-output-format mkv \
   --write-subs \
@@ -39,10 +37,15 @@ yt-dlp \
   --write-thumbnail \
   --convert-thumbnails jpg \
   --embed-metadata \
+  --sleep-interval 30 \
+  --max-sleep-interval 60 \
+  --sleep-requests 5 \
+  --retries 30 \
+  --fragment-retries 30 \
+  --retry-sleep "exp=1:60:2" \
   -o "%(title)s.%(ext)s" \
   "$video_url"
 
-# 检查下载是否成功
 if [ $? -ne 0 ]; then
     echo -e "${RED}下载失败！请检查网络或视频链接。${NC}"
     exit 1
@@ -52,7 +55,6 @@ echo ""
 echo -e "${GREEN}下载完成！正在转换字幕格式...${NC}"
 echo ""
 
-# 转换所有 VTT 字幕为 SRT 格式
 converted_count=0
 for vtt_file in *.vtt; do
     if [ -f "$vtt_file" ]; then
@@ -60,7 +62,7 @@ for vtt_file in *.vtt; do
         ffmpeg -i "$vtt_file" "$srt_file" -loglevel quiet
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✓ 已转换:${NC} $vtt_file → $srt_file"
-            rm -f "$vtt_file"  # 删除原始 VTT 文件
+            rm -f "$vtt_file"
             ((converted_count++))
         else
             echo -e "${RED}✗ 转换失败:${NC} $vtt_file"
@@ -68,7 +70,6 @@ for vtt_file in *.vtt; do
     fi
 done
 
-# 如果没有找到 VTT 文件，检查是否已经是 SRT
 if [ $converted_count -eq 0 ]; then
     echo -e "${YELLOW}未找到 VTT 字幕文件，可能已经是 SRT 格式或无字幕。${NC}"
 fi
