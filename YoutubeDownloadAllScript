@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # ============================================
-# YouTube 万能下载器 v7.0
+# YouTube 万能下载器 v7.1
 # 功能：自动检测依赖、灵活选择认证方式、下载最高画质+字幕+封面
+# 新增：自动检测并安装缺失的 Python 包
 # ============================================
 
 # 设置颜色输出
@@ -24,14 +25,69 @@ step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
 # 清屏并显示标题
 clear
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}      YouTube 万能下载器 v7.0          ${NC}"
+echo -e "${GREEN}      YouTube 万能下载器 v7.1          ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # ============================================
-# 第一步：检测并安装必要依赖
+# 辅助函数：自动安装 Python 包
 # ============================================
-step "1/6 检测系统依赖"
+install_pip_package() {
+    local package=$1
+    local import_name=${2:-$1}
+    
+    # 检查包是否已安装
+    if python3 -c "import $import_name" 2>/dev/null; then
+        info "✓ Python 包 $package 已安装"
+        return 0
+    fi
+    
+    warn "未找到 Python 包: $package"
+    read -p "是否自动安装 $package？(y/n): " install_it
+    if [[ "$install_it" =~ ^[Yy]$ ]]; then
+        info "正在安装 $package..."
+        pip install "$package" --break-system-packages 2>/dev/null
+        if python3 -c "import $import_name" 2>/dev/null; then
+            info "✓ $package 安装成功"
+            return 0
+        else
+            warn "$package 安装失败，可能影响部分功能"
+            return 1
+        fi
+    else
+        warn "跳过安装 $package，相关功能可能受限"
+        return 1
+    fi
+}
+
+# ============================================
+# 第一步：检测并安装 pip（如果需要）
+# ============================================
+step "0/7 检测 Python 环境"
+
+if ! command -v python3 &> /dev/null; then
+    error "未找到 Python3，请先安装 Python3"
+    exit 1
+fi
+
+if ! command -v pip &> /dev/null; then
+    warn "未找到 pip"
+    read -p "是否安装 pip？(y/n): " install_pip
+    if [[ "$install_pip" =~ ^[Yy]$ ]]; then
+        sudo apt update && sudo apt install python3-pip -y
+        info "✓ pip 安装完成"
+    else
+        error "无法继续，请手动安装 pip"
+        exit 1
+    fi
+fi
+
+info "Python3 已就绪"
+
+# ============================================
+# 第二步：检测并安装必要依赖
+# ============================================
+step "1/7 检测系统依赖"
 
 # 检测 yt-dlp
 YT_DLP_CMD=""
@@ -47,6 +103,9 @@ else
         if [ -f "$HOME/.local/bin/yt-dlp" ]; then
             YT_DLP_CMD="$HOME/.local/bin/yt-dlp"
             export PATH="$HOME/.local/bin:$PATH"
+            info "✓ yt-dlp 安装成功"
+        elif command -v yt-dlp &> /dev/null; then
+            YT_DLP_CMD="yt-dlp"
             info "✓ yt-dlp 安装成功"
         else
             error "yt-dlp 安装失败，请手动安装"
@@ -86,9 +145,25 @@ if ! command -v deno &> /dev/null; then
 fi
 
 # ============================================
-# 第二步：检查 yt-dlp 版本
+# 第三步：检测并安装 Python 依赖包
 # ============================================
-step "2/6 检查 yt-dlp 版本"
+step "2/7 检测 Python 依赖包"
+
+# 安装必要的 Python 包
+install_pip_package "certifi" "certifi"
+install_pip_package "requests" "requests"
+install_pip_package "urllib3" "urllib3"
+
+# 如果选择 Chrome Cookie，需要 secretstorage
+read -p "是否使用 Chrome Cookie？(y/n，如选是将安装 secretstorage): " use_chrome
+if [[ "$use_chrome" =~ ^[Yy]$ ]]; then
+    install_pip_package "secretstorage" "secretstorage"
+fi
+
+# ============================================
+# 第四步：检查 yt-dlp 版本
+# ============================================
+step "3/7 检查 yt-dlp 版本"
 YT_VERSION=$($YT_DLP_CMD --version 2>/dev/null)
 info "当前版本: $YT_VERSION"
 
@@ -104,9 +179,9 @@ if [[ "$YT_VERSION" < "2025" ]]; then
 fi
 
 # ============================================
-# 第三步：选择保存目录
+# 第五步：选择保存目录
 # ============================================
-step "3/6 选择保存目录"
+step "4/7 选择保存目录"
 echo "当前目录: $SCRIPT_DIR"
 read -p "是否使用当前目录？(y/n): " use_current
 if [[ "$use_current" =~ ^[Yy]$ ]]; then
@@ -122,9 +197,9 @@ cd "$SAVE_DIR"
 info "文件将保存到: $SAVE_DIR"
 
 # ============================================
-# 第四步：选择认证方式
+# 第六步：选择认证方式
 # ============================================
-step "4/6 选择认证方式（用于访问受限内容）"
+step "5/7 选择认证方式（用于访问受限内容）"
 echo "1) 使用 cookies.txt 文件（最稳定）"
 echo "2) 从 Firefox 导入 Cookie（推荐）"
 echo "3) 从 Chrome 导入 Cookie（需安装依赖）"
@@ -150,7 +225,8 @@ case $auth_choice in
     3)
         COOKIE_OPT="--cookies-from-browser chrome"
         info "✓ 将使用 Chrome Cookie"
-        warn "如果失败，请尝试安装: pip install secretstorage --break-system-packages"
+        # 再次确认 secretstorage 已安装
+        install_pip_package "secretstorage" "secretstorage"
         ;;
     4)
         COOKIE_OPT=""
@@ -159,9 +235,9 @@ case $auth_choice in
 esac
 
 # ============================================
-# 第五步：下载选项配置
+# 第七步：下载选项配置
 # ============================================
-step "5/6 配置下载选项"
+step "6/7 配置下载选项"
 
 # 下载封面
 read -p "是否下载并嵌入封面图片？(y/n): " get_cover
@@ -184,9 +260,9 @@ else
 fi
 
 # ============================================
-# 第六步：输入链接并开始下载
+# 第八步：输入链接并开始下载
 # ============================================
-step "6/6 输入链接并开始下载"
+step "7/7 输入链接并开始下载"
 echo -e "${YELLOW}支持：单个视频 / 播放列表 / 频道${NC}"
 read -p "👉 请输入链接: " video_url
 
