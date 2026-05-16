@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# ============================================
+# YouTube 万能下载器 Lite
+# 功能：自由组合下载视频/音频/字幕/封面
+# 说明：无环境检测，需预先安装 yt-dlp/ffmpeg/deno
+# ============================================
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+info() { echo -e "${GREEN}[信息]${NC} $1"; }
+warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
+error() { echo -e "${RED}[错误]${NC} $1"; }
+step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
+
+clear
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}   YouTube 万能下载器 Lite            ${NC}"
+echo -e "${GREEN}   轻量版 · 无环境检测               ${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+
+# ============================================
+# 基础设置
+# ============================================
+step "1/4 基础设置"
+
+# 保存目录
+read -p "保存目录（回车使用当前目录）: " SAVE_DIR
+if [ -z "$SAVE_DIR" ]; then
+    SAVE_DIR="$(pwd)"
+fi
+mkdir -p "$SAVE_DIR"
+cd "$SAVE_DIR"
+info "文件将保存到: $SAVE_DIR"
+
+# 认证方式
+echo ""
+echo "认证方式:"
+echo "1) 使用 cookies.txt 文件（最稳定）"
+echo "2) 从 Firefox 导入 Cookie（推荐）"
+echo "3) 从 Chrome 导入 Cookie"
+echo "4) 跳过认证"
+read -p "请选择 [1-4]: " auth_choice
+
+COOKIE_OPT=""
+case $auth_choice in
+    1)
+        if [ -f "$SAVE_DIR/cookies.txt" ]; then
+            COOKIE_OPT="--cookies cookies.txt"
+            info "✓ 将使用 cookies.txt"
+        else
+            warn "未找到 cookies.txt，将跳过认证"
+        fi
+        ;;
+    2)
+        COOKIE_OPT="--cookies-from-browser firefox"
+        info "✓ 将使用 Firefox Cookie"
+        ;;
+    3)
+        COOKIE_OPT="--cookies-from-browser chrome"
+        info "✓ 将使用 Chrome Cookie"
+        ;;
+    4)
+        warn "将跳过认证"
+        ;;
+esac
+
+# 链接输入
+echo ""
+read -p "👉 请输入 YouTube 链接: " video_url
+if [ -z "$video_url" ]; then
+    error "未输入链接！"
+    exit 1
+fi
+
+# ============================================
+# 选择下载内容
+# ============================================
+step "2/4 选择下载内容"
+
+read -p "下载视频？(y/n): " get_video
+read -p "下载音频？(y/n): " get_audio
+read -p "下载字幕？(y/n): " get_sub
+read -p "下载封面？(y/n): " get_cover
+
+# 字幕语言选项
+if [[ "$get_sub" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "字幕语言:"
+    echo "1) 简体中文"
+    echo "2) 英文"
+    echo "3) 双语（分开文件）"
+    echo "4) 双语（合并为一个文件）"
+    read -p "请选择 [1-4]: " lang_choice
+
+    case $lang_choice in
+        1) SUB_LANGS="zh-Hans" ; MERGE_SUB=false ;;
+        2) SUB_LANGS="en" ; MERGE_SUB=false ;;
+        3) SUB_LANGS="zh-Hans,en" ; MERGE_SUB=false ;;
+        4) SUB_LANGS="zh-Hans,en" ; MERGE_SUB=true ;;
+    esac
+fi
+
+# ============================================
+# 构建命令参数
+# ============================================
+step "3/4 构建下载命令"
+
+CMD_OPTS="$COOKIE_OPT --no-check-certificates"
+
+# 视频/音频参数
+if [[ "$get_video" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    CMD_OPTS="$CMD_OPTS --merge-output-format mp4"
+fi
+
+if [[ "$get_audio" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
+fi
+
+# 字幕参数
+if [[ "$get_sub" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --write-subs --write-auto-subs"
+    CMD_OPTS="$CMD_OPTS --sub-langs $SUB_LANGS"
+    CMD_OPTS="$CMD_OPTS --sub-format srt/best"
+    CMD_OPTS="$CMD_OPTS --convert-subs srt"
+fi
+
+# 封面参数
+if [[ "$get_cover" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --write-thumbnail --convert-thumbnails jpg"
+fi
+
+# 元数据
+if [[ "$get_video" =~ ^[Yy]$ ]] || [[ "$get_audio" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --embed-metadata"
+fi
+
+# 如果只下载字幕/封面，不下载视频/音频
+if [[ ! "$get_video" =~ ^[Yy]$ ]] && [[ ! "$get_audio" =~ ^[Yy]$ ]]; then
+    CMD_OPTS="$CMD_OPTS --skip-download"
+fi
+
+# ============================================
+# 执行下载
+# ============================================
+step "4/4 开始下载"
+
+echo ""
+info "执行命令: yt-dlp $CMD_OPTS -o \"%(title)s.%(ext)s\" \"$video_url\""
+echo ""
+
+yt-dlp $CMD_OPTS -o "%(title)s.%(ext)s" "$video_url"
+
+if [ $? -ne 0 ]; then
+    error "下载失败！"
+    exit 1
+fi
+
+# 清理临时文件
+rm -f *.vtt 2>/dev/null
+
+# 双语字幕合并
+if [[ "$MERGE_SUB" == "true" ]]; then
+    ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
+    EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
+    if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
+        BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
+        paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
+        info "✓ 双语字幕合并完成: $BILINGUAL"
+    fi
+fi
+
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}完成！文件保存在: $SAVE_DIR${NC}"
+echo -e "${GREEN}========================================${NC}"
+ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|srt|jpg)$" | head -10
