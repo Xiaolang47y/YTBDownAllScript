@@ -1,18 +1,18 @@
 Youtube视频+中英字幕+封面一键下载脚本，来自Deepseek氛围编程。
 
-主要基于yt-dlp与ffmpeg。
-
-从Cookies获取信息以下载高清视频。
+主要基于yt-dlp与ffmpeg，自带环境检测（Lite无此功能）。
 
 支持的功能：
 
 ============================
 
-自动检测python3和pip，并可选择自动安装。
+自动检测python3和pip，并可选择自动安装。（Lite版无此功能）
 
-自动检测yt-dlp、ffmpeg、Deno，并可选择自动安装。
+自动检测yt-dlp、ffmpeg、Deno，并可选择自动安装。（Lite版无此功能）
 
-检测yt-dlp版本。
+检测yt-dlp版本。（Lite版无此功能）
+
+自动检测secretstorage。（Lite版无此功能）
 
 自行选择保存文件的目录。
 
