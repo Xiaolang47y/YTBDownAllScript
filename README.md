@@ -41,5 +41,3 @@ Youtube视频+中英字幕+封面一键下载脚本，来自Deepseek氛围编程
     ./YoutubeDownloadAllScriptLite.sh
 
 其全部内容都来自Deepseek生成，无任何人类成分，请不放心使用
-
-测试运行环境为Linux Mint Xfce 22.3
