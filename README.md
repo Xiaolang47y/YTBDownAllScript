@@ -32,12 +32,12 @@ Chrome/Firefox/cookies.txt 认证
 
 请使用此命令为此脚本赋予运行权限（Linux）：
 
-    chmod +x YoutubeDownloadAllScript.sh
-    chmod +x YoutubeDownloadAllScriptLite.sh
+    chmod +x YTBDownAllScript.sh
+    chmod +x YTBDownAllScript-Lite.sh
 
 然后使用此命令运行此脚本（Linux）：
 
-    ./YoutubeDownloadAllScript.sh
-    ./YoutubeDownloadAllScriptLite.sh
+    ./YTBDownAllScript.sh
+    ./YTBDownAllScript-Lite.sh
 
 其全部内容都来自Deepseek生成，无任何人类成分，请不放心使用
