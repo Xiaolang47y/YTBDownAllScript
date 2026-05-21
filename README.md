@@ -1,32 +1,32 @@
-Youtube视频+中英字幕+封面一键下载脚本，来自Deepseek氛围编程。
+Youtube视频+中英字幕+封面TUI下载脚本。
 
-主要基于yt-dlp与ffmpeg，自带环境检测（Lite无此功能）。
+主要基于yt-dlp与ffmpeg。
 
-支持的功能：
+普通版带有环境检测，Lite版不带。
+
+支持的功能（带有*号的为Lite版不支持的功能）：
 
 ============================
 
-自动检测python3和pip，并可选择自动安装。（Lite版无此功能）
+*Python3/pip 自动检测安装（）
 
-自动检测yt-dlp、ffmpeg、Deno，并可选择自动安装。（Lite版无此功能）
+*yt-dlp 自动安装 + 版本检测
 
-检测yt-dlp版本。（Lite版无此功能）
+*ffmpeg 自动检测安装
 
-自动检测secretstorage。（Lite版无此功能）
+*Deno 自动检测安装
 
-自行选择保存文件的目录。
+*secretstorage 自动安装
 
-自选择认证方式（cookies.txt/Chrome导入/Firefox导入/无认证）（cookies.txt方式需要安装Get-cookies.txt-LOCALLY浏览器插件）。
+单个/批量下载模式
 
-自选择是否下载视频（.mp4）。
+视频/音频/字幕/封面自由组合
 
-自选择是否下载音频（.mp3）。
+30次重试 + 3-10秒休眠
 
-自选择是否下载封面图片（.jpg）。
+双语字幕自动合并
 
-自选择是否下载中英文字幕（.srt）。
-
-自行输入链接（支持单个视频/播放列表/频道）。
+Chrome/Firefox/cookies.txt 认证
 
 ============================
 
