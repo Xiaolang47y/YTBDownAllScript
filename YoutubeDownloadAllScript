@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # ============================================
-# YouTube 万能下载器 v13.2
-# 功能：只使用 pip 版 yt-dlp + 自动版本检测 + 开箱即用
-# 说明：apt 版太老且无法自更新，本脚本强制使用 pip 版本
+# YouTube 万能下载器 V14.0（完整版）
+# 功能：自动检测依赖 + 批量下载 + 30次重试
 # ============================================
 
 RED='\033[0;31m'
@@ -19,15 +18,16 @@ step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
 
 clear
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   YouTube 万能下载器 v13.2           ${NC}"
-echo -e "${GREEN}   纯 pip 版 · 自动版本检测          ${NC}"
+echo -e "${GREEN}   YouTube 万能下载器 V14.0            ${NC}"
+echo -e "${GREEN}   完整版 · 自动检测 · 批量下载       ${NC}"
+echo -e "${GREEN}   30次重试 · 开箱即用                ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # ============================================
 # 1. 检测并安装 Python3 / pip
 # ============================================
-step "1/6 检测 Python 环境"
+step "1/7 检测 Python 环境"
 
 if ! command -v python3 &> /dev/null; then
     error "未找到 Python3"
@@ -56,15 +56,15 @@ fi
 info "✓ Python3 已就绪 ($(python3 --version))"
 
 # ============================================
-# 2. 确保使用 pip 版的 yt-dlp（完全忽略 apt 版）
+# 2. 安装/更新 yt-dlp（纯 pip 版）
 # ============================================
-step "2/6 安装/更新 yt-dlp (pip 版)"
+step "2/7 安装/更新 yt-dlp"
 
-# 检查 pip 版的 yt-dlp 是否存在
 PIP_YT_DLP="$HOME/.local/bin/yt-dlp"
+YT_DLP_CMD=""
 
 if [ -f "$PIP_YT_DLP" ] && command -v yt-dlp &> /dev/null; then
-    YT_DLP_CMD="$PIP_YT_DLP"
+    YT_DLP_CMD="yt-dlp"
     YT_VERSION=$(yt-dlp --version 2>/dev/null)
     info "✓ 检测到 pip 版 yt-dlp (版本: $YT_VERSION)"
     
@@ -95,7 +95,7 @@ else
         pip install -U "yt-dlp[default]" --break-system-packages 2>/dev/null
         
         if [ -f "$PIP_YT_DLP" ]; then
-            YT_DLP_CMD="$PIP_YT_DLP"
+            YT_DLP_CMD="yt-dlp"
             export PATH="$HOME/.local/bin:$PATH"
             YT_VERSION=$(yt-dlp --version)
             info "✓ yt-dlp $YT_VERSION 安装成功"
@@ -109,13 +109,12 @@ else
     fi
 fi
 
-# 确保 PATH 包含 ~/.local/bin（pip 安装位置）
 export PATH="$HOME/.local/bin:$PATH"
 
 # ============================================
 # 3. 检测并安装 ffmpeg
 # ============================================
-step "3/6 检测 ffmpeg"
+step "3/7 检测 ffmpeg"
 
 if ! command -v ffmpeg &> /dev/null; then
     warn "未找到 ffmpeg"
@@ -131,9 +130,9 @@ fi
 info "✓ ffmpeg 已就绪"
 
 # ============================================
-# 4. 检测并安装 Deno（YouTube 签名解密）
+# 4. 检测并安装 Deno
 # ============================================
-step "4/6 检测 Deno"
+step "4/7 检测 Deno"
 
 if ! command -v deno &> /dev/null; then
     warn "未找到 Deno"
@@ -154,7 +153,7 @@ fi
 # ============================================
 # 5. 检测 Python 依赖包
 # ============================================
-step "5/6 检测 Python 依赖包"
+step "5/7 检测 Python 依赖包"
 
 read -p "是否使用 Chrome Cookie？(y/n): " use_chrome
 if [[ "$use_chrome" =~ ^[Yy]$ ]]; then
@@ -169,9 +168,9 @@ if [[ "$use_chrome" =~ ^[Yy]$ ]]; then
 fi
 
 # ============================================
-# 6. 基础设置（保存目录 + 认证）
+# 6. 基础设置
 # ============================================
-step "6/6 基础设置"
+step "6/7 基础设置"
 
 read -p "保存目录（回车使用当前目录）: " SAVE_DIR
 if [ -z "$SAVE_DIR" ]; then
@@ -212,17 +211,42 @@ case $auth_choice in
         ;;
 esac
 
-read -p "👉 请输入 YouTube 链接: " video_url
-if [ -z "$video_url" ]; then
-    error "未输入链接！"
+# ============================================
+# 下载模式选择
+# ============================================
+echo ""
+echo "下载模式:"
+echo "1) 单个链接"
+echo "2) 批量下载（多个链接）"
+read -p "请选择 [1-2]: " batch_mode
+
+# ============================================
+# 收集链接
+# ============================================
+links=()
+
+if [ "$batch_mode" == "2" ]; then
+    echo ""
+    echo "请输入链接列表（每行一个，输入空行结束）:"
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && break
+        links+=("$line")
+    done
+else
+    echo ""
+    read -p "👉 请输入 YouTube 链接: " single_url
+    links+=("$single_url")
+fi
+
+if [ ${#links[@]} -eq 0 ]; then
+    error "未输入任何链接！"
     exit 1
 fi
 
 # ============================================
-# 7. 选择下载内容
+# 下载选项
 # ============================================
-step "选择下载内容"
-
+echo ""
 read -p "下载视频？(y/n): " get_video
 read -p "下载音频？(y/n): " get_audio
 read -p "下载字幕？(y/n): " get_sub
@@ -246,65 +270,97 @@ if [[ "$get_sub" =~ ^[Yy]$ ]]; then
 fi
 
 # ============================================
-# 8. 构建并执行
+# 构建命令参数（30次重试）
 # ============================================
-CMD_OPTS="$COOKIE_OPT --no-check-certificates"
+step "7/7 开始下载"
+
+# 重试参数（30次，如果不够可改为 infinite）
+RETRY_OPTS="--retries 30 --fragment-retries 30 --sleep-interval 3 --max-sleep-interval 10"
+
+BASE_OPTS="$COOKIE_OPT --no-check-certificates $RETRY_OPTS"
 
 if [[ "$get_video" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-    CMD_OPTS="$CMD_OPTS --merge-output-format mp4"
+    BASE_OPTS="$BASE_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    BASE_OPTS="$BASE_OPTS --merge-output-format mp4"
 fi
 
 if [[ "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
+    BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
 fi
 
 if [[ "$get_sub" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --write-subs --write-auto-subs"
-    CMD_OPTS="$CMD_OPTS --sub-langs $SUB_LANGS"
-    CMD_OPTS="$CMD_OPTS --sub-format srt/best"
-    CMD_OPTS="$CMD_OPTS --convert-subs srt"
+    BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
+    BASE_OPTS="$BASE_OPTS --sub-langs $SUB_LANGS"
+    BASE_OPTS="$BASE_OPTS --sub-format srt/best"
+    BASE_OPTS="$BASE_OPTS --convert-subs srt"
 fi
 
 if [[ "$get_cover" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --write-thumbnail --convert-thumbnails jpg"
+    BASE_OPTS="$BASE_OPTS --write-thumbnail --convert-thumbnails jpg"
 fi
 
 if [[ "$get_video" =~ ^[Yy]$ ]] || [[ "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --embed-metadata"
+    BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
 if [[ ! "$get_video" =~ ^[Yy]$ ]] && [[ ! "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --skip-download"
+    BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
+info "重试配置: 最多 30 次（完整下载）/ 30 次（分片下载）"
+info "休眠间隔: 3-10 秒"
 echo ""
-info "开始下载..."
-echo ""
 
-$YT_DLP_CMD $CMD_OPTS -o "%(title)s.%(ext)s" "$video_url"
+# ============================================
+# 执行下载
+# ============================================
+total=${#links[@]}
+current=0
+success=0
+fail=0
 
-if [ $? -ne 0 ]; then
-    error "下载失败！"
-    exit 1
-fi
-
-# 清理临时文件
-rm -f *.vtt 2>/dev/null
-
-# 双语字幕合并
-if [[ "$MERGE_SUB" == "true" ]]; then
-    ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
-    EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
-    if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
-        BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
-        paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
-        info "✓ 双语字幕合并完成: $BILINGUAL"
+for url in "${links[@]}"; do
+    current=$((current + 1))
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    info "正在处理 [$current/$total]: $url"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url"
+    
+    if [ $? -eq 0 ]; then
+        success=$((success + 1))
+        info "✓ 处理成功"
+    else
+        fail=$((fail + 1))
+        warn "✗ 处理失败: $url"
     fi
-fi
+    
+    # 清理临时文件
+    rm -f *.vtt 2>/dev/null
+    
+    # 双语字幕合并
+    if [[ "$MERGE_SUB" == "true" ]]; then
+        ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
+        EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
+        if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
+            BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
+            paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
+            info "✓ 双语字幕合并完成: $BILINGUAL"
+        fi
+    fi
+done
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}完成！文件保存在: $SAVE_DIR${NC}"
+echo -e "${GREEN}下载完成！${NC}"
+echo -e "${GREEN}  成功: $success 个${NC}"
+echo -e "${GREEN}  失败: $fail 个${NC}"
+echo -e "${GREEN}  总计: $total 个链接${NC}"
+echo -e "${GREEN}文件保存在: $SAVE_DIR${NC}"
 echo -e "${GREEN}========================================${NC}"
-ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|srt|jpg)$" | head -10
+
+if [ $success -gt 0 ]; then
+    echo ""
+    ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|srt|jpg)$" | tail -15
+fi
