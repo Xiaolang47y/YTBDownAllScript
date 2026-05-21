@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # ============================================
-# YouTube 万能下载器 Lite
-# 功能：自由组合下载视频/音频/字幕/封面
-# 说明：无环境检测，需预先安装 yt-dlp/ffmpeg/deno
+# YouTube 万能下载器 Lite（批量版）
+# 功能：支持单个/批量链接下载，30次重试
 # ============================================
 
 RED='\033[0;31m'
@@ -19,17 +18,16 @@ step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
 
 clear
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   YouTube 万能下载器 Lite            ${NC}"
-echo -e "${GREEN}   轻量版 · 无环境检测               ${NC}"
+echo -e "${GREEN}   YouTube 万能下载器 Lite（批量版）   ${NC}"
+echo -e "${GREEN}   支持单个/批量 · 25次重试           ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # ============================================
 # 基础设置
 # ============================================
-step "1/4 基础设置"
+step "1/5 基础设置"
 
-# 保存目录
 read -p "保存目录（回车使用当前目录）: " SAVE_DIR
 if [ -z "$SAVE_DIR" ]; then
     SAVE_DIR="$(pwd)"
@@ -38,7 +36,6 @@ mkdir -p "$SAVE_DIR"
 cd "$SAVE_DIR"
 info "文件将保存到: $SAVE_DIR"
 
-# 认证方式
 echo ""
 echo "认证方式:"
 echo "1) 使用 cookies.txt 文件（最稳定）"
@@ -70,25 +67,49 @@ case $auth_choice in
         ;;
 esac
 
-# 链接输入
-echo ""
-read -p "👉 请输入 YouTube 链接: " video_url
-if [ -z "$video_url" ]; then
-    error "未输入链接！"
+# ============================================
+# 下载模式选择
+# ============================================
+step "2/5 选择下载模式"
+
+echo "下载模式:"
+echo "1) 单个链接"
+echo "2) 批量下载（多个链接）"
+read -p "请选择 [1-2]: " batch_mode
+
+# ============================================
+# 收集链接
+# ============================================
+links=()
+
+if [ "$batch_mode" == "2" ]; then
+    echo ""
+    echo "请输入链接列表（每行一个，输入空行结束）:"
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && break
+        links+=("$line")
+    done
+else
+    echo ""
+    read -p "👉 请输入 YouTube 链接: " single_url
+    links+=("$single_url")
+fi
+
+if [ ${#links[@]} -eq 0 ]; then
+    error "未输入任何链接！"
     exit 1
 fi
 
 # ============================================
-# 选择下载内容
+# 下载选项（所有链接共用相同选项）
 # ============================================
-step "2/4 选择下载内容"
+step "3/5 选择下载内容"
 
 read -p "下载视频？(y/n): " get_video
 read -p "下载音频？(y/n): " get_audio
 read -p "下载字幕？(y/n): " get_sub
 read -p "下载封面？(y/n): " get_cover
 
-# 字幕语言选项
 if [[ "$get_sub" =~ ^[Yy]$ ]]; then
     echo ""
     echo "字幕语言:"
@@ -107,77 +128,99 @@ if [[ "$get_sub" =~ ^[Yy]$ ]]; then
 fi
 
 # ============================================
-# 构建命令参数
+# 构建通用命令参数（包含25次重试）
 # ============================================
-step "3/4 构建下载命令"
+step "4/5 构建下载命令"
 
-CMD_OPTS="$COOKIE_OPT --no-check-certificates"
+# 重试参数（30次，如果不够可改为 infinite）
+RETRY_OPTS="--retries 30 --fragment-retries 30 --sleep-interval 3 --max-sleep-interval 10"
 
-# 视频/音频参数
+BASE_OPTS="$COOKIE_OPT --no-check-certificates $RETRY_OPTS"
+
 if [[ "$get_video" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-    CMD_OPTS="$CMD_OPTS --merge-output-format mp4"
+    BASE_OPTS="$BASE_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    BASE_OPTS="$BASE_OPTS --merge-output-format mp4"
 fi
 
 if [[ "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
+    BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
 fi
 
-# 字幕参数
 if [[ "$get_sub" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --write-subs --write-auto-subs"
-    CMD_OPTS="$CMD_OPTS --sub-langs $SUB_LANGS"
-    CMD_OPTS="$CMD_OPTS --sub-format srt/best"
-    CMD_OPTS="$CMD_OPTS --convert-subs srt"
+    BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
+    BASE_OPTS="$BASE_OPTS --sub-langs $SUB_LANGS"
+    BASE_OPTS="$BASE_OPTS --sub-format srt/best"
+    BASE_OPTS="$BASE_OPTS --convert-subs srt"
 fi
 
-# 封面参数
 if [[ "$get_cover" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --write-thumbnail --convert-thumbnails jpg"
+    BASE_OPTS="$BASE_OPTS --write-thumbnail --convert-thumbnails jpg"
 fi
 
-# 元数据
 if [[ "$get_video" =~ ^[Yy]$ ]] || [[ "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --embed-metadata"
+    BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
-# 如果只下载字幕/封面，不下载视频/音频
 if [[ ! "$get_video" =~ ^[Yy]$ ]] && [[ ! "$get_audio" =~ ^[Yy]$ ]]; then
-    CMD_OPTS="$CMD_OPTS --skip-download"
+    BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
+# 显示重试配置
+info "重试配置: 最多 25 次（完整下载）/ 25 次（分片下载）"
+info "休眠间隔: 5-15 秒"
+
 # ============================================
-# 执行下载
+# 执行下载（循环处理每个链接）
 # ============================================
-step "4/4 开始下载"
+step "5/5 开始下载"
 
-echo ""
-info "执行命令: yt-dlp $CMD_OPTS -o \"%(title)s.%(ext)s\" \"$video_url\""
-echo ""
+total=${#links[@]}
+current=0
+success=0
+fail=0
 
-yt-dlp $CMD_OPTS -o "%(title)s.%(ext)s" "$video_url"
-
-if [ $? -ne 0 ]; then
-    error "下载失败！"
-    exit 1
-fi
-
-# 清理临时文件
-rm -f *.vtt 2>/dev/null
-
-# 双语字幕合并
-if [[ "$MERGE_SUB" == "true" ]]; then
-    ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
-    EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
-    if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
-        BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
-        paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
-        info "✓ 双语字幕合并完成: $BILINGUAL"
+for url in "${links[@]}"; do
+    current=$((current + 1))
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    info "正在处理 [$current/$total]: $url"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url"
+    
+    if [ $? -eq 0 ]; then
+        success=$((success + 1))
+        info "✓ 处理成功"
+    else
+        fail=$((fail + 1))
+        warn "✗ 处理失败: $url"
     fi
-fi
+    
+    # 清理临时文件
+    rm -f *.vtt 2>/dev/null
+    
+    # 双语字幕合并（每个视频单独合并）
+    if [[ "$MERGE_SUB" == "true" ]]; then
+        ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
+        EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
+        if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
+            BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
+            paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
+            info "✓ 双语字幕合并完成: $BILINGUAL"
+        fi
+    fi
+done
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}完成！文件保存在: $SAVE_DIR${NC}"
+echo -e "${GREEN}批量下载完成！${NC}"
+echo -e "${GREEN}  成功: $success 个${NC}"
+echo -e "${GREEN}  失败: $fail 个${NC}"
+echo -e "${GREEN}  总计: $total 个链接${NC}"
+echo -e "${GREEN}文件保存在: $SAVE_DIR${NC}"
 echo -e "${GREEN}========================================${NC}"
-ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|srt|jpg)$" | head -10
+
+if [ $success -gt 0 ]; then
+    echo ""
+    ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|srt|jpg)$" | tail -15
+fi
