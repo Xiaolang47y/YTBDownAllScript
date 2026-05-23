@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # ============================================
-# YouTube 万能下载器 Lite V16.2
+# YouTube 万能下载器 Lite V16.5
 # 适用于：Debian / Ubuntu / Linux Mint 等 Debian 系列发行版
 # 
 # 功能说明：
-#   1. 无环境检测（需预先安装 yt-dlp/ffmpeg/Deno）
+#   1. 无环境检测（需预先安装 yt-dlp/ffmpeg）
 #   2. 支持单个链接或批量链接下载
 #   3. 支持视频/音频/字幕/封面自由组合
-#   4. 字幕支持英语/日语 + 简体中文，自动合并碎句
-#   5. 无限重试（网络波动自动恢复）
-#   6. 所有选项均采用数字输入
+#   4. 字幕支持英语/日语 + 简体中文
+#   5. 智能合并碎句字幕（针对逐词模式优化）
+#   6. 无限重试 · 全数字输入
 # ============================================
 
 RED='\033[0;31m'
@@ -24,9 +24,6 @@ warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
 error() { echo -e "${RED}[错误]${NC} $1"; }
 step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
 
-# ============================================
-# 安全输入函数
-# ============================================
 safe_read() {
     local prompt="$1"
     local var_name="$2"
@@ -58,8 +55,8 @@ safe_option() {
 
 clear
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   YouTube 万能下载器 Lite V16.2       ${NC}"
-echo -e "${GREEN}   无环境检测 · 全数字输入 · 无限重试  ${NC}"
+echo -e "${GREEN}   YouTube 万能下载器 Lite V16.5      ${NC}"
+echo -e "${GREEN}   智能字幕合并 · 逐词模式适配       ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
@@ -167,7 +164,6 @@ echo "1) 是"
 echo "2) 否"
 safe_option "请选择 [1-2]: " get_cover "12"
 
-# 字幕语言选择
 if [ "$get_sub" == "1" ]; then
     echo ""
     echo "请选择字幕语言:"
@@ -240,26 +236,145 @@ info "休眠间隔: 3-10 秒"
 echo ""
 
 # ============================================
-# 检查 SubtitleEditor（可选）
+# 智能字幕合并函数（针对逐词模式优化）
 # ============================================
-step "3/4 检查 SubtitleEditor"
-
-SUBEDIT_CMD=""
-if command -v subtitleeditor &> /dev/null; then
-    SUBEDIT_CMD="subtitleeditor"
-    info "✓ 检测到 SubtitleEditor，将自动合并碎句字幕"
-elif [ -f "/usr/bin/subtitleeditor" ]; then
-    SUBEDIT_CMD="/usr/bin/subtitleeditor"
-    info "✓ 检测到 SubtitleEditor，将自动合并碎句字幕"
-else
-    warn "未安装 SubtitleEditor，字幕将保持原始格式（可能有黏连）"
-    info "安装命令: sudo apt install subtitleeditor"
-fi
+merge_subtitle() {
+    local input_srt="$1"
+    local temp_file="${input_srt}.tmp"
+    local merged_file="${input_srt}.merged"
+    
+    if [ ! -s "$input_srt" ]; then
+        return 1
+    fi
+    
+    # 步骤1：去除完全重复的行
+    awk '
+    BEGIN { prev_text = ""; output_count = 0; }
+    {
+        if (NF == 0) next;
+        
+        if ($0 ~ /-->/) {
+            time_line = $0
+            getline text_line
+            getline
+            text_line = text_line
+            
+            if (text_line != prev_text) {
+                output_count++
+                print output_count
+                print time_line
+                print text_line
+                print ""
+                prev_text = text_line
+            }
+        }
+    }
+    ' "$input_srt" > "$temp_file"
+    
+    # 步骤2：基于语义合并短句
+    awk '
+    function time_to_seconds(t) {
+        split(t, parts, /[:,]/)
+        if (parts[4] == "") parts[4] = 0
+        return parts[1]*3600 + parts[2]*60 + parts[3] + parts[4]/1000
+    }
+    
+    BEGIN { 
+        merged_text = ""; 
+        merged_start = ""; 
+        merged_end = "";
+        last_end_sec = 0;
+        output_count = 0;
+    }
+    
+    {
+        if (NF == 0) next;
+        
+        if ($0 ~ /^[0-9]+$/) {
+            getline time_line
+            getline text_line
+            getline
+            
+            split(time_line, time_arr, " --> ")
+            start_time = time_arr[1]
+            end_time = time_arr[2]
+            
+            start_sec = time_to_seconds(start_time)
+            end_sec = time_to_seconds(end_time)
+            text_len = length(text_line)
+            
+            has_end = (text_line ~ /[.!?…]$/)
+            
+            if (merged_text == "") {
+                merged_text = text_line
+                merged_start = start_time
+                merged_end = end_time
+                last_end_sec = end_sec
+                has_end_mark = has_end
+            } else {
+                gap = start_sec - last_end_sec
+                
+                should_merge = 0
+                if (gap < 1.0 && !has_end_mark) {
+                    should_merge = 1
+                } else if (text_len < 30 && !has_end && !has_end_mark) {
+                    should_merge = 1
+                } else if (gap < 2.0 && text_len < 40 && !has_end) {
+                    should_merge = 1
+                }
+                
+                if (should_merge) {
+                    merged_text = merged_text " " text_line
+                    merged_end = end_time
+                    last_end_sec = end_sec
+                    has_end_mark = has_end
+                } else {
+                    output_count++
+                    print output_count
+                    print merged_start " --> " merged_end
+                    if (merged_text !~ /[.!?…]$/ && length(merged_text) > 20) {
+                        merged_text = merged_text "."
+                    }
+                    print merged_text
+                    print ""
+                    
+                    merged_text = text_line
+                    merged_start = start_time
+                    merged_end = end_time
+                    last_end_sec = end_sec
+                    has_end_mark = has_end
+                }
+            }
+        }
+    }
+    END {
+        if (merged_text != "") {
+            output_count++
+            print output_count
+            print merged_start " --> " merged_end
+            if (merged_text !~ /[.!?…]$/ && length(merged_text) > 20) {
+                merged_text = merged_text "."
+            }
+            print merged_text
+            print ""
+        }
+    }
+    ' "$temp_file" > "$merged_file"
+    
+    if [ -s "$merged_file" ]; then
+        mv "$merged_file" "$input_srt"
+        rm -f "$temp_file"
+        return 0
+    else
+        rm -f "$temp_file"
+        return 1
+    fi
+}
 
 # ============================================
 # 执行下载
 # ============================================
-step "4/4 开始下载"
+step "3/4 开始下载"
 
 total=${#links[@]}
 current=0
@@ -279,26 +394,37 @@ for url in "${links[@]}"; do
         success=$((success + 1))
         info "✓ 下载成功"
         
-        # 字幕处理
+        # ============================================
+        # 字幕处理：VTT → SRT → 智能合并
+        # ============================================
         if [ "$get_sub" == "1" ]; then
             for vtt_file in *.vtt; do
                 if [ -f "$vtt_file" ]; then
                     srt_file="${vtt_file%.vtt}.srt"
+                    
+                    info "正在处理字幕: $(basename "$vtt_file")"
+                    
                     ffmpeg -i "$vtt_file" "$srt_file" -loglevel quiet 2>/dev/null
                     if [ $? -eq 0 ]; then
                         rm -f "$vtt_file"
-                        info "✓ 已转换: $vtt_file → $srt_file"
+                        info "✓ 已转换: $(basename "$vtt_file") → $(basename "$srt_file")"
                         
-                        if [ -n "$SUBEDIT_CMD" ]; then
-                            subtitleeditor --merge-short-lines "$srt_file" 2>/dev/null
-                            info "✓ 已合并碎句: $srt_file"
+                        info "正在合并碎句字幕..."
+                        if merge_subtitle "$srt_file"; then
+                            info "✓ 已合并碎句: $(basename "$srt_file")"
+                        else
+                            warn "碎句合并失败: $(basename "$srt_file")"
                         fi
+                    else
+                        warn "转换失败: $vtt_file"
                     fi
                 fi
             done
         fi
         
+        # 清理残留
         rm -f *.vtt 2>/dev/null
+        rm -f *.tmp 2>/dev/null
         
     else
         fail=$((fail + 1))
