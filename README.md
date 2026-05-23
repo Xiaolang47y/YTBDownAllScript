@@ -1,8 +1,8 @@
-Youtube视频+中英字幕+封面TUI下载脚本。
+Youtube视频+中英日字幕+封面TUI下载脚本。
 
-主要基于yt-dlp与ffmpeg。
+主要基于yt-dlp。
 
-普通版带有环境检测，Lite版不带。
+普通版带有环境检测与补齐（仅Debian及其发行版），Lite版无此功能。
 
 支持的功能（带有*号的为Lite版不支持的功能）：
 
@@ -16,15 +16,17 @@ Youtube视频+中英字幕+封面TUI下载脚本。
 
 *Deno 自动检测安装
 
+SubtitleEditor 自动检测（*安装）
+
 *secretstorage 自动安装
 
 单个/批量下载模式
 
-视频/音频/字幕/封面自由组合
+视频/音频/中英日字幕/封面自由组合
 
 30次重试 + 3-10秒休眠
 
-双语字幕自动合并
+自动获取Youtube自动字幕，使用SubtitleEditor转换为SRT
 
 Chrome/Firefox/cookies.txt 认证
 
