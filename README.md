@@ -16,8 +16,6 @@ Youtube视频+中英日字幕+封面TUI下载脚本。
 
 *Deno 自动检测安装
 
-SubtitleEditor 自动检测（*安装）
-
 *secretstorage 自动安装
 
 单个/批量下载模式
@@ -26,7 +24,7 @@ SubtitleEditor 自动检测（*安装）
 
 30次重试 + 3-10秒休眠
 
-自动获取Youtube自动字幕，使用SubtitleEditor转换为SRT
+自动获取Youtube自动字幕，使用ffmpeg转换为srt格式
 
 Chrome/Firefox/cookies.txt 认证
 
