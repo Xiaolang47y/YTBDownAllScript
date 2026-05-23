@@ -1,8 +1,16 @@
 #!/bin/bash
 
 # ============================================
-# YouTube 万能下载器 V14.0（完整版）
-# 功能：自动检测依赖 + 批量下载 + 30次重试
+# YouTube 万能下载器 V16.2
+# 适用于：Debian / Ubuntu / Linux Mint 等 Debian 系列发行版
+# 
+# 功能说明：
+#   1. 自动检测并安装依赖
+#   2. 支持单个链接或批量链接下载
+#   3. 支持视频/音频/字幕/封面自由组合
+#   4. 字幕支持英语/日语 + 简体中文，自动合并碎句
+#   5. 无限重试（网络波动自动恢复）
+#   6. 所有选项均采用数字输入
 # ============================================
 
 RED='\033[0;31m'
@@ -16,23 +24,59 @@ warn() { echo -e "${YELLOW}[警告]${NC} $1"; }
 error() { echo -e "${RED}[错误]${NC} $1"; }
 step() { echo -e "\n${BLUE}>>>${NC} ${BLUE}$1${NC}"; }
 
+# ============================================
+# 安全输入函数（防止空输入）
+# ============================================
+safe_read() {
+    local prompt="$1"
+    local var_name="$2"
+    local input=""
+    while [ -z "$input" ]; do
+        read -p "$prompt" input
+        if [ -z "$input" ]; then
+            warn "输入不能为空，请重新输入"
+        fi
+    done
+    eval "$var_name=\"$input\""
+}
+
+# ============================================
+# 安全选项输入函数（限制在指定选项内）
+# ============================================
+safe_option() {
+    local prompt="$1"
+    local var_name="$2"
+    local options="$3"
+    local input=""
+    while true; do
+        read -p "$prompt" input
+        if [[ "$options" == *"$input"* ]]; then
+            break
+        else
+            warn "无效选项，请输入 ${options// / 或 } 中的任意一个"
+        fi
+    done
+    eval "$var_name=\"$input\""
+}
+
 clear
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   YouTube 万能下载器 V14.0            ${NC}"
-echo -e "${GREEN}   完整版 · 自动检测 · 批量下载       ${NC}"
-echo -e "${GREEN}   30次重试 · 开箱即用                ${NC}"
+echo -e "${GREEN}   YouTube 万能下载器 V16.2            ${NC}"
+echo -e "${GREEN}   全数字输入 · 无限重试 · 碎句合并    ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
 # ============================================
 # 1. 检测并安装 Python3 / pip
 # ============================================
-step "1/7 检测 Python 环境"
+step "1/8 检测 Python 环境"
 
 if ! command -v python3 &> /dev/null; then
     error "未找到 Python3"
-    read -p "是否安装 Python3？(y/n): " install_py
-    if [[ "$install_py" =~ ^[Yy]$ ]]; then
+    echo "1) 安装 Python3"
+    echo "2) 退出"
+    safe_option "请选择 [1-2]: " install_py "12"
+    if [ "$install_py" == "1" ]; then
         sudo apt update && sudo apt install python3 python3-pip -y
         info "✓ Python3 安装完成"
     else
@@ -43,8 +87,10 @@ fi
 
 if ! command -v pip &> /dev/null; then
     warn "未找到 pip"
-    read -p "是否安装 pip？(y/n): " install_pip
-    if [[ "$install_pip" =~ ^[Yy]$ ]]; then
+    echo "1) 安装 pip"
+    echo "2) 退出"
+    safe_option "请选择 [1-2]: " install_pip "12"
+    if [ "$install_pip" == "1" ]; then
         sudo apt install python3-pip -y
         info "✓ pip 安装完成"
     else
@@ -58,7 +104,7 @@ info "✓ Python3 已就绪 ($(python3 --version))"
 # ============================================
 # 2. 安装/更新 yt-dlp（纯 pip 版）
 # ============================================
-step "2/7 安装/更新 yt-dlp"
+step "2/8 安装/更新 yt-dlp"
 
 PIP_YT_DLP="$HOME/.local/bin/yt-dlp"
 YT_DLP_CMD=""
@@ -68,15 +114,16 @@ if [ -f "$PIP_YT_DLP" ] && command -v yt-dlp &> /dev/null; then
     YT_VERSION=$(yt-dlp --version 2>/dev/null)
     info "✓ 检测到 pip 版 yt-dlp (版本: $YT_VERSION)"
     
-    # 自动检查更新
     info "正在检查最新版本..."
     LATEST_VERSION=$(curl -s https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest | grep -oP '"tag_name": "\K(.*?)(?=")' | sed 's/^stable@//')
     
     if [ -n "$LATEST_VERSION" ]; then
         if [[ "$YT_VERSION" != "$LATEST_VERSION" ]]; then
             warn "发现新版本！当前: $YT_VERSION → 最新: $LATEST_VERSION"
-            read -p "是否更新 yt-dlp？(y/n): " update_yt
-            if [[ "$update_yt" =~ ^[Yy]$ ]]; then
+            echo "1) 更新 yt-dlp"
+            echo "2) 跳过更新"
+            safe_option "请选择 [1-2]: " update_yt "12"
+            if [ "$update_yt" == "1" ]; then
                 pip install -U "yt-dlp[default]" --break-system-packages 2>/dev/null
                 YT_VERSION=$(yt-dlp --version)
                 info "✓ 已更新到 $YT_VERSION"
@@ -89,8 +136,10 @@ if [ -f "$PIP_YT_DLP" ] && command -v yt-dlp &> /dev/null; then
     fi
 else
     warn "未找到 pip 版 yt-dlp"
-    read -p "是否安装 yt-dlp？(y/n): " install_yt
-    if [[ "$install_yt" =~ ^[Yy]$ ]]; then
+    echo "1) 安装 yt-dlp"
+    echo "2) 退出"
+    safe_option "请选择 [1-2]: " install_yt "12"
+    if [ "$install_yt" == "1" ]; then
         info "正在通过 pip 安装..."
         pip install -U "yt-dlp[default]" --break-system-packages 2>/dev/null
         
@@ -114,12 +163,14 @@ export PATH="$HOME/.local/bin:$PATH"
 # ============================================
 # 3. 检测并安装 ffmpeg
 # ============================================
-step "3/7 检测 ffmpeg"
+step "3/8 检测 ffmpeg"
 
 if ! command -v ffmpeg &> /dev/null; then
     warn "未找到 ffmpeg"
-    read -p "是否安装 ffmpeg？(y/n): " install_ff
-    if [[ "$install_ff" =~ ^[Yy]$ ]]; then
+    echo "1) 安装 ffmpeg"
+    echo "2) 退出"
+    safe_option "请选择 [1-2]: " install_ff "12"
+    if [ "$install_ff" == "1" ]; then
         sudo apt update && sudo apt install ffmpeg -y
         info "✓ ffmpeg 安装完成"
     else
@@ -130,14 +181,56 @@ fi
 info "✓ ffmpeg 已就绪"
 
 # ============================================
-# 4. 检测并安装 Deno
+# 4. 检测并安装 SubtitleEditor（字幕碎句合并）
 # ============================================
-step "4/7 检测 Deno"
+step "4/8 检测 SubtitleEditor"
+
+SUBEDIT_CMD=""
+
+if command -v subtitleeditor &> /dev/null; then
+    SUBEDIT_CMD="subtitleeditor"
+    info "✓ SubtitleEditor 已安装"
+elif [ -f "/usr/bin/subtitleeditor" ]; then
+    SUBEDIT_CMD="/usr/bin/subtitleeditor"
+    info "✓ SubtitleEditor 已安装"
+else
+    warn "未找到 SubtitleEditor（用于合并碎句字幕）"
+    echo "1) 安装 SubtitleEditor（推荐）"
+    echo "2) 跳过安装（字幕可能有黏连）"
+    safe_option "请选择 [1-2]: " install_se "12"
+    if [ "$install_se" == "1" ]; then
+        info "正在更新软件源..."
+        sudo apt update
+        
+        info "正在启用 universe 仓库..."
+        sudo add-apt-repository universe -y
+        sudo apt update
+        
+        info "正在通过 apt 安装 subtitleeditor..."
+        sudo apt install subtitleeditor -y
+        
+        if command -v subtitleeditor &> /dev/null; then
+            SUBEDIT_CMD="subtitleeditor"
+            info "✓ SubtitleEditor 安装完成"
+        else
+            warn "SubtitleEditor 安装失败，将跳过字幕碎句合并"
+        fi
+    else
+        warn "跳过 SubtitleEditor 安装，字幕可能保持碎句状态"
+    fi
+fi
+
+# ============================================
+# 5. 检测并安装 Deno
+# ============================================
+step "5/8 检测 Deno"
 
 if ! command -v deno &> /dev/null; then
     warn "未找到 Deno"
-    read -p "是否安装 Deno？(y/n): " install_deno
-    if [[ "$install_deno" =~ ^[Yy]$ ]]; then
+    echo "1) 安装 Deno（推荐）"
+    echo "2) 跳过安装（下载可能失败）"
+    safe_option "请选择 [1-2]: " install_deno "12"
+    if [ "$install_deno" == "1" ]; then
         info "正在安装 Deno..."
         curl -fsSL https://deno.land/install.sh | sh
         export PATH="$HOME/.deno/bin:$PATH"
@@ -151,30 +244,39 @@ else
 fi
 
 # ============================================
-# 5. 检测 Python 依赖包
+# 6. 检测 Python 依赖包（Chrome Cookie 需要）
 # ============================================
-step "5/7 检测 Python 依赖包"
+step "6/8 检测 Python 依赖包"
 
-read -p "是否使用 Chrome Cookie？(y/n): " use_chrome
-if [[ "$use_chrome" =~ ^[Yy]$ ]]; then
+echo "是否使用 Chrome Cookie？"
+echo "1) 是（需要安装 secretstorage）"
+echo "2) 否"
+safe_option "请选择 [1-2]: " use_chrome "12"
+
+if [ "$use_chrome" == "1" ]; then
     if ! python3 -c "import secretstorage" 2>/dev/null; then
         warn "Chrome Cookie 需要 secretstorage"
-        read -p "是否安装 secretstorage？(y/n): " install_ss
-        if [[ "$install_ss" =~ ^[Yy]$ ]]; then
+        echo "1) 安装 secretstorage"
+        echo "2) 跳过（Chrome Cookie 可能失败）"
+        safe_option "请选择 [1-2]: " install_ss "12"
+        if [ "$install_ss" == "1" ]; then
             pip install secretstorage --break-system-packages 2>/dev/null
             info "✓ secretstorage 安装完成"
         fi
+    else
+        info "✓ secretstorage 已安装"
     fi
 fi
 
 # ============================================
-# 6. 基础设置
+# 7. 基础设置
 # ============================================
-step "6/7 基础设置"
+step "7/8 基础设置"
 
-read -p "保存目录（回车使用当前目录）: " SAVE_DIR
+DEFAULT_DIR="$(pwd)"
+read -p "保存目录（回车使用当前目录: $DEFAULT_DIR）: " SAVE_DIR
 if [ -z "$SAVE_DIR" ]; then
-    SAVE_DIR="$(pwd)"
+    SAVE_DIR="$DEFAULT_DIR"
 fi
 mkdir -p "$SAVE_DIR"
 cd "$SAVE_DIR"
@@ -186,7 +288,7 @@ echo "1) 使用 cookies.txt 文件（最稳定）"
 echo "2) 从 Firefox 导入 Cookie（推荐）"
 echo "3) 从 Chrome 导入 Cookie"
 echo "4) 跳过认证"
-read -p "请选择 [1-4]: " auth_choice
+safe_option "请选择 [1-4]: " auth_choice "1234"
 
 COOKIE_OPT=""
 case $auth_choice in
@@ -218,7 +320,7 @@ echo ""
 echo "下载模式:"
 echo "1) 单个链接"
 echo "2) 批量下载（多个链接）"
-read -p "请选择 [1-2]: " batch_mode
+safe_option "请选择 [1-2]: " batch_mode "12"
 
 # ============================================
 # 收集链接
@@ -234,7 +336,7 @@ if [ "$batch_mode" == "2" ]; then
     done
 else
     echo ""
-    read -p "👉 请输入 YouTube 链接: " single_url
+    safe_read "👉 请输入 YouTube 链接: " single_url
     links+=("$single_url")
 fi
 
@@ -247,67 +349,98 @@ fi
 # 下载选项
 # ============================================
 echo ""
-read -p "下载视频？(y/n): " get_video
-read -p "下载音频？(y/n): " get_audio
-read -p "下载字幕？(y/n): " get_sub
-read -p "下载封面？(y/n): " get_cover
+echo "下载视频？"
+echo "1) 是"
+echo "2) 否"
+safe_option "请选择 [1-2]: " get_video "12"
 
-if [[ "$get_sub" =~ ^[Yy]$ ]]; then
+echo ""
+echo "下载音频？"
+echo "1) 是"
+echo "2) 否"
+safe_option "请选择 [1-2]: " get_audio "12"
+
+echo ""
+echo "下载字幕？"
+echo "1) 是"
+echo "2) 否"
+safe_option "请选择 [1-2]: " get_sub "12"
+
+echo ""
+echo "下载封面？"
+echo "1) 是"
+echo "2) 否"
+safe_option "请选择 [1-2]: " get_cover "12"
+
+# 字幕语言选择
+if [ "$get_sub" == "1" ]; then
     echo ""
-    echo "字幕语言:"
-    echo "1) 简体中文"
-    echo "2) 英文"
-    echo "3) 双语（分开文件）"
-    echo "4) 双语（合并为一个文件）"
-    read -p "请选择 [1-4]: " lang_choice
+    echo "请选择字幕语言:"
+    echo "1) 英语 + 简体中文"
+    echo "2) 日语 + 简体中文"
+    echo "3) 仅简体中文"
+    echo "4) 仅英语"
+    echo "5) 仅日语"
+    safe_option "请输入数字 [1-5]: " lang_choice "12345"
 
     case $lang_choice in
-        1) SUB_LANGS="zh-Hans" ; MERGE_SUB=false ;;
-        2) SUB_LANGS="en" ; MERGE_SUB=false ;;
-        3) SUB_LANGS="zh-Hans,en" ; MERGE_SUB=false ;;
-        4) SUB_LANGS="zh-Hans,en" ; MERGE_SUB=true ;;
+        1) SOURCE_LANG="en" ; TARGET_LANG="zh-Hans" ;;
+        2) SOURCE_LANG="ja" ; TARGET_LANG="zh-Hans" ;;
+        3) SOURCE_LANG=""    ; TARGET_LANG="zh-Hans" ;;
+        4) SOURCE_LANG="en"  ; TARGET_LANG="" ;;
+        5) SOURCE_LANG="ja"  ; TARGET_LANG="" ;;
     esac
 fi
 
 # ============================================
-# 构建命令参数（30次重试）
+# 构建命令参数（无限重试）
 # ============================================
-step "7/7 开始下载"
+step "8/8 开始下载"
 
-# 重试参数（30次，如果不够可改为 infinite）
-RETRY_OPTS="--retries 30 --fragment-retries 30 --sleep-interval 3 --max-sleep-interval 10"
+RETRY_OPTS="--retries infinite --fragment-retries infinite --sleep-interval 3 --max-sleep-interval 10"
 
 BASE_OPTS="$COOKIE_OPT --no-check-certificates $RETRY_OPTS"
 
-if [[ "$get_video" =~ ^[Yy]$ ]]; then
+if [ "$get_video" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
     BASE_OPTS="$BASE_OPTS --merge-output-format mp4"
 fi
 
-if [[ "$get_audio" =~ ^[Yy]$ ]]; then
+if [ "$get_audio" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
 fi
 
-if [[ "$get_sub" =~ ^[Yy]$ ]]; then
+if [ "$get_sub" == "1" ]; then
+    SUB_LANGS=""
+    if [ -n "$SOURCE_LANG" ]; then
+        SUB_LANGS="$SOURCE_LANG"
+    fi
+    if [ -n "$TARGET_LANG" ]; then
+        if [ -n "$SUB_LANGS" ]; then
+            SUB_LANGS="$SUB_LANGS,$TARGET_LANG"
+        else
+            SUB_LANGS="$TARGET_LANG"
+        fi
+    fi
+    
     BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
     BASE_OPTS="$BASE_OPTS --sub-langs $SUB_LANGS"
-    BASE_OPTS="$BASE_OPTS --sub-format srt/best"
-    BASE_OPTS="$BASE_OPTS --convert-subs srt"
+    BASE_OPTS="$BASE_OPTS --sub-format vtt"
 fi
 
-if [[ "$get_cover" =~ ^[Yy]$ ]]; then
+if [ "$get_cover" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --write-thumbnail --convert-thumbnails jpg"
 fi
 
-if [[ "$get_video" =~ ^[Yy]$ ]] || [[ "$get_audio" =~ ^[Yy]$ ]]; then
+if [ "$get_video" == "1" ] || [ "$get_audio" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
-if [[ ! "$get_video" =~ ^[Yy]$ ]] && [[ ! "$get_audio" =~ ^[Yy]$ ]]; then
+if [ "$get_video" != "1" ] && [ "$get_audio" != "1" ]; then
     BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
-info "重试配置: 最多 30 次（完整下载）/ 30 次（分片下载）"
+info "重试配置: 无限重试（网络波动自动恢复）"
 info "休眠间隔: 3-10 秒"
 echo ""
 
@@ -330,24 +463,34 @@ for url in "${links[@]}"; do
     
     if [ $? -eq 0 ]; then
         success=$((success + 1))
-        info "✓ 处理成功"
+        info "✓ 下载成功"
+        
+        # 字幕处理
+        if [ "$get_sub" == "1" ]; then
+            for vtt_file in *.vtt; do
+                if [ -f "$vtt_file" ]; then
+                    srt_file="${vtt_file%.vtt}.srt"
+                    ffmpeg -i "$vtt_file" "$srt_file" -loglevel quiet 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                        rm -f "$vtt_file"
+                        info "✓ 已转换: $vtt_file → $srt_file"
+                        
+                        # 如果有 SubtitleEditor，尝试合并碎句
+                        if [ -n "$SUBEDIT_CMD" ]; then
+                            subtitleeditor --merge-short-lines "$srt_file" 2>/dev/null
+                            info "✓ 已合并碎句: $srt_file"
+                        fi
+                    fi
+                fi
+            done
+        fi
+        
+        # 清理残留
+        rm -f *.vtt 2>/dev/null
+        
     else
         fail=$((fail + 1))
         warn "✗ 处理失败: $url"
-    fi
-    
-    # 清理临时文件
-    rm -f *.vtt 2>/dev/null
-    
-    # 双语字幕合并
-    if [[ "$MERGE_SUB" == "true" ]]; then
-        ZH_FILE=$(ls *.zh-Hans.srt 2>/dev/null | head -1)
-        EN_FILE=$(ls *.en.srt 2>/dev/null | head -1)
-        if [ -f "$ZH_FILE" ] && [ -f "$EN_FILE" ]; then
-            BILINGUAL="${ZH_FILE%.zh-Hans.srt}_bilingual.srt"
-            paste -d '\n' "$ZH_FILE" "$EN_FILE" | awk 'NR%2==1 {print; getline; print; getline; print; getline; print ""}' > "$BILINGUAL"
-            info "✓ 双语字幕合并完成: $BILINGUAL"
-        fi
     fi
 done
 
