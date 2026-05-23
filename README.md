@@ -1,32 +1,28 @@
 Youtube视频+中英日字幕+封面TUI下载脚本。
 
-主要基于yt-dlp。
+主要基于yt-dlp/python3/ffmpeg。
 
 普通版带有环境检测与补齐（仅Debian及其发行版），Lite版无此功能。
 
-支持的功能（带有*号的为Lite版不支持的功能）：
+支持的功能：
 
 ============================
 
-*Python3/pip 自动检测安装
+cookies.txt / Firefox / Chrome 三种认证方式
 
-*yt-dlp 自动安装 + 版本检测
+单链接下载 / 批量下载模式
 
-*ffmpeg 自动检测安装
+视频下载（MP4 最佳画质）
 
-*Deno 自动检测安装
+音频提取（MP3 最高音质）
 
-*secretstorage 自动安装
+VTT 字幕下载（支持英/日/简体中文及组合）
 
-单个/批量下载模式
+VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
 
-视频/音频/中英日字幕/封面自由组合
+封面缩略图下载（JPG）
 
-无限次重试（应对网络环境差）3-10秒休眠（应对请求过多）
-
-自动获取Youtube自动字幕，使用ffmpeg转换为srt格式
-
-Chrome/Firefox/cookies.txt 认证
+无限重试下载
 
 ============================
 
@@ -40,4 +36,4 @@ Chrome/Firefox/cookies.txt 认证
     ./YTBDownAllScript.sh
     ./YTBDownAllScript-Lite.sh
 
-其全部内容都来自Deepseek生成，无任何人类成分，请不放心使用
+其全部内容都来自Deepseek+TRAE AI生成，无任何人类成分，请不放心使用
