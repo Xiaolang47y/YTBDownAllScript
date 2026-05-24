@@ -4,21 +4,23 @@ Youtube视频+中英日字幕+封面TUI下载脚本。
 
 普通版带有环境检测与补齐（仅Debian及其发行版），Lite版无此功能。
 
+可搭配https://github.com/Xiaolang47y/vtt2srt进行VTT字幕换换SRT字幕，更方便上传B站CC字幕。
+
 支持的功能：
 
 ============================
 
-cookies.txt / Firefox / Chrome 三种认证方式
+cookies.txt/Firefox/Chrome三种认证方式
 
-单链接下载 / 批量下载模式
+单链接下载/批量下载模式
 
-视频下载（MP4 最佳画质）
+视频下载（MP4最佳画质）
 
-音频提取（MP3 最高音质）
+音频提取（MP3最高音质）
 
-VTT 字幕下载（支持英/日/简体中文及组合）
+VTT字幕下载（支持英/日/简体中文及组合）
 
-VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
+通过vtt2srt.py将逐句的VTT格式字幕统一转换为逐句的SRT字幕
 
 封面缩略图下载（JPG）
 
