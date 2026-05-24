@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 """
-YouTube VTT实时字幕转SRT去重工具
+YouTube VTT实时字幕转SRT去重工具 V2.0
 功能：将YouTube实时字幕（累积式VTT）转换为去重后的SRT格式
-原理：检测累积文本，只保留每段的新增内容
+原理：
+  1. 过滤掉极短的显示块（<0.1s）
+  2. 仅处理带词级时间戳的内容块
+  3. 使用累积文本跟踪，提取每个块的新增内容
+  4. 智能合并短句块
 """
 
 import re
 import sys
 import os
 from pathlib import Path
+
+
+def time_to_seconds(time_str):
+    """将时间字符串转换为秒"""
+    parts = time_str.split(':')
+    return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
 
 
 def parse_vtt(filepath):
@@ -37,13 +47,26 @@ def parse_vtt(filepath):
         text = re.sub(r'\s+', ' ', text).strip()
         
         if text:
+            duration = time_to_seconds(end) - time_to_seconds(start)
             blocks.append({
                 'start': start,
                 'end': end,
-                'text': text
+                'text': text,
+                'duration': duration
             })
     
     return blocks
+
+
+def filter_content_blocks(blocks):
+    """过滤掉极短的显示块，保留内容块"""
+    content_blocks = []
+    for block in blocks:
+        # 跳过持续时间小于0.1秒的块（这些是显示块）
+        if block['duration'] < 0.1:
+            continue
+        content_blocks.append(block)
+    return content_blocks
 
 
 def deduplicate_blocks(blocks):
@@ -52,106 +75,75 @@ def deduplicate_blocks(blocks):
         return []
     
     result = []
-    prev_text = ""
+    cumulative_text = ""
     
     for i, block in enumerate(blocks):
         current_text = block['text']
         
-        if prev_text:
-            # 方法1：精确前缀匹配
-            if current_text.startswith(prev_text):
-                new_text = current_text[len(prev_text):].strip()
-                if len(new_text) < 2:
-                    continue
-                result.append({
-                    'start': block['start'],
-                    'end': block['end'],
-                    'text': new_text
-                })
-                prev_text = current_text
-                continue
-            
-            # 方法2：查找前文在当前位置，提取后续
-            if prev_text in current_text:
-                idx = current_text.find(prev_text) + len(prev_text)
-                new_text = current_text[idx:].strip()
-                if len(new_text) < 2:
-                    continue
-                result.append({
-                    'start': block['start'],
-                    'end': block['end'],
-                    'text': new_text
-                })
-                prev_text = current_text
-                continue
-            
-            # 方法3：查找重叠部分（前文的结尾与当前文本的开头重叠）
-            overlap_found = False
-            for overlap_len in range(min(len(prev_text), len(current_text)), 10, -1):
-                suffix = prev_text[-overlap_len:]
-                if current_text.startswith(suffix):
-                    # 找到重叠，提取非重叠部分
-                    new_text = current_text[overlap_len:].strip()
-                    if len(new_text) >= 2:
-                        result.append({
-                            'start': block['start'],
-                            'end': block['end'],
-                            'text': new_text
-                        })
-                    overlap_found = True
-                    break
-            
-            if overlap_found:
-                prev_text = current_text
-                continue
-            
-            # 方法4：查找前文后半部分在当前的开头（更宽松的重叠检测）
-            words_prev = prev_text.split()
-            words_curr = current_text.split()
-            
-            if len(words_prev) >= 3 and len(words_curr) >= 3:
-                for n in range(min(len(words_prev), len(words_curr)), 1, -1):
-                    suffix_words = ' '.join(words_prev[-n:])
-                    prefix_words = ' '.join(words_curr[:n])
-                    
-                    if suffix_words == prefix_words:
-                        # 找到词级重叠
-                        remaining = words_curr[n:]
-                        if remaining:
-                            new_text = ' '.join(remaining)
-                            if len(new_text) >= 2:
-                                result.append({
-                                    'start': block['start'],
-                                    'end': block['end'],
-                                    'text': new_text
-                                })
-                        overlap_found = True
-                        break
-            
-            if overlap_found:
-                prev_text = current_text
-                continue
-            
-            # 无重叠，全新内容
-            result.append({
-                'start': block['start'],
-                'end': block['end'],
-                'text': current_text
-            })
-        else:
-            # 第一个块
-            result.append({
-                'start': block['start'],
-                'end': block['end'],
-                'text': current_text
-            })
+        if not cumulative_text:
+            # 第一个块，全部是新增内容
+            new_block = block.copy()
+            new_block['text'] = current_text
+            result.append(new_block)
+            cumulative_text = current_text
+            continue
         
-        prev_text = current_text
+        # 尝试从累积文本中提取新增内容
+        new_text = extract_new_text(cumulative_text, current_text)
+        
+        if new_text and len(new_text) >= 2:
+            new_block = block.copy()
+            new_block['text'] = new_text
+            result.append(new_block)
+            cumulative_text = current_text
+        else:
+            # 没有新增内容或新增内容太少，跳过此块
+            cumulative_text = current_text
     
     return result
 
 
-def merge_short_blocks(blocks, min_duration=1.5):
+def extract_new_text(prev_text, current_text):
+    """从前一个累积文本和当前文本中提取新增内容"""
+    # 方法1：精确前缀匹配
+    if current_text.startswith(prev_text):
+        new_text = current_text[len(prev_text):].strip()
+        return new_text
+    
+    # 方法2：查找前文在当前位置，提取后续
+    if prev_text in current_text:
+        idx = current_text.find(prev_text) + len(prev_text)
+        new_text = current_text[idx:].strip()
+        return new_text
+    
+    # 方法3：词级重叠检测
+    words_prev = prev_text.split()
+    words_curr = current_text.split()
+    
+    if len(words_prev) >= 2 and len(words_curr) >= 2:
+        max_overlap = min(len(words_prev), len(words_curr))
+        for n in range(max_overlap, 1, -1):
+            suffix_words = words_prev[-n:]
+            prefix_words = words_curr[:n]
+            
+            if suffix_words == prefix_words:
+                remaining = words_curr[n:]
+                if remaining:
+                    return ' '.join(remaining)
+                return ""
+    
+    # 方法4：字符级重叠检测
+    for overlap_len in range(min(len(prev_text), len(current_text)), 5, -1):
+        suffix = prev_text[-overlap_len:]
+        if current_text.startswith(suffix):
+            new_text = current_text[overlap_len:].strip()
+            return new_text
+    
+    # 无重叠，返回整个当前文本
+    return current_text
+
+
+def merge_short_blocks(blocks, min_duration=0.5):
     """合并过短的字幕块，避免字幕闪得太快"""
     if len(blocks) <= 1:
         return blocks
@@ -163,23 +155,33 @@ def merge_short_blocks(blocks, min_duration=1.5):
         next_block = blocks[i]
         
         # 计算当前块持续时间（秒）
-        start_parts = current['start'].split(':')
-        end_parts = current['end'].split(':')
-        
-        start_sec = float(start_parts[0]) * 3600 + float(start_parts[1]) * 60 + float(start_parts[2])
-        end_sec = float(end_parts[0]) * 3600 + float(end_parts[1]) * 60 + float(end_parts[2])
-        duration = end_sec - start_sec
+        duration = current['duration']
         
         # 如果当前块太短，合并下一个
         if duration < min_duration:
             current['text'] = current['text'] + ' ' + next_block['text']
             current['end'] = next_block['end']
+            current['duration'] = time_to_seconds(current['end']) - time_to_seconds(current['start'])
         else:
             merged.append(current)
             current = next_block.copy()
     
     merged.append(current)
     return merged
+
+
+def clean_text(text):
+    """清理文本中的多余空格和标点问题"""
+    # 清理多余空格
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # 修复标点前的空格
+    text = re.sub(r'\s+([,.!?;:])', r'\1', text)
+    
+    # 修复标点后缺少空格
+    text = re.sub(r'([,.!?;:])([a-zA-Z])', r'\1 \2', text)
+    
+    return text
 
 
 def vtt_to_srt_time(time_str):
@@ -191,9 +193,10 @@ def write_srt(blocks, filepath):
     """写入SRT文件"""
     with open(filepath, 'w', encoding='utf-8') as f:
         for i, block in enumerate(blocks, 1):
+            clean_text_content = clean_text(block['text'])
             f.write(f"{i}\n")
             f.write(f"{vtt_to_srt_time(block['start'])} --> {vtt_to_srt_time(block['end'])}\n")
-            f.write(f"{block['text']}\n\n")
+            f.write(f"{clean_text_content}\n\n")
 
 
 def process_vtt_file(vtt_path, output_path=None):
@@ -212,8 +215,12 @@ def process_vtt_file(vtt_path, output_path=None):
     
     print(f"  原始块数: {len(blocks)}")
     
+    # 过滤显示块
+    content_blocks = filter_content_blocks(blocks)
+    print(f"  过滤后内容块: {len(content_blocks)}")
+    
     # 去重
-    deduped = deduplicate_blocks(blocks)
+    deduped = deduplicate_blocks(content_blocks)
     print(f"  去重后: {len(deduped)}")
     
     # 合并过短的块
