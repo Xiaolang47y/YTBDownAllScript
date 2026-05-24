@@ -58,7 +58,6 @@ safe_option() {
 clear
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}   YouTube 万能下载器 Lite V1.0        ${NC}"
-echo -e "${GREEN}   VTT字幕去重转SRT · 无限重试         ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
@@ -163,11 +162,18 @@ if [ "$get_sub" == "1" ]; then
         5) SUB_LANGS="ja" ;;
     esac
     
-    echo ""
-    echo "是否自动转换为SRT（去重）？"
-    echo "1) 是（推荐，去除实时字幕重复）"
-    echo "2) 否（保留原始VTT）"
-    safe_option "请选择 [1-2]: " convert_srt "12"
+    # 检测vtt2srt.py是否存在
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    if [ -f "$SCRIPT_DIR/vtt2srt.py" ]; then
+        echo ""
+        echo "是否自动转换为SRT（去重）？"
+        echo "1) 是（推荐，去除实时字幕重复）"
+        echo "2) 否（保留原始VTT）"
+        safe_option "请选择 [1-2]: " convert_srt "12"
+    else
+        warn "未找到 vtt2srt.py，将保留原始VTT格式"
+        convert_srt="2"
+    fi
 fi
 
 echo ""
