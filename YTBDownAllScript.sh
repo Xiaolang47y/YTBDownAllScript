@@ -340,7 +340,7 @@ done
 if [ "$get_sub" == "1" ] && [ "$convert_srt" == "1" ]; then
     step "统一转换所有VTT字幕为SRT（去重）"
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    python3 "$SCRIPT_DIR/vtt_to_srt.py" "$SAVE_DIR"
+    python3 "$SCRIPT_DIR/vtt2srt.py" "$SAVE_DIR"
     info "清理原始VTT文件"
     find "$SAVE_DIR" -name "*.vtt" -type f -delete
 fi
