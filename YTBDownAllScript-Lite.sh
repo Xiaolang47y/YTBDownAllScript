@@ -58,6 +58,7 @@ safe_option() {
 clear
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}   YouTube 万能下载器 Lite V1.0        ${NC}"
+echo -e "${GREEN}   VTT字幕去重转SRT · 无限重试         ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
@@ -139,12 +140,14 @@ echo "2) 否"
 safe_option "请选择 [1-2]: " get_audio "12"
 
 echo ""
-echo "下载字幕？（VTT 格式，自动转SRT去重）"
-echo "1) 是"
-echo "2) 否"
-safe_option "请选择 [1-2]: " get_sub "12"
+echo "下载字幕？"
+echo "1) 是（VTT 格式，可自动转SRT去重）"
+echo "2) 是（直接下载 SRT 格式）"
+echo "3) 否"
+safe_option "请选择 [1-3]: " get_sub "123"
 
 if [ "$get_sub" == "1" ]; then
+    SUB_FORMAT="vtt"
     echo ""
     echo "字幕语言:"
     echo "1) 英语 + 简体中文"
@@ -174,6 +177,26 @@ if [ "$get_sub" == "1" ]; then
         warn "未找到 vtt2srt.py，将保留原始VTT格式"
         convert_srt="2"
     fi
+elif [ "$get_sub" == "2" ]; then
+    SUB_FORMAT="srt"
+    echo ""
+    echo "字幕语言:"
+    echo "1) 英语 + 简体中文"
+    echo "2) 日语 + 简体中文"
+    echo "3) 仅简体中文"
+    echo "4) 仅英语"
+    echo "5) 仅日语"
+    safe_option "请输入 [1-5]: " lang_choice "12345"
+    
+    case $lang_choice in
+        1) SUB_LANGS="en,zh-Hans" ;;
+        2) SUB_LANGS="ja,zh-Hans" ;;
+        3) SUB_LANGS="zh-Hans" ;;
+        4) SUB_LANGS="en" ;;
+        5) SUB_LANGS="ja" ;;
+    esac
+    
+    convert_srt="2"
 fi
 
 echo ""
@@ -199,10 +222,11 @@ if [ "$get_audio" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
 fi
 
-if [ "$get_sub" == "1" ]; then
+# 下载字幕
+if [ "$get_sub" == "1" ] || [ "$get_sub" == "2" ]; then
     BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
     BASE_OPTS="$BASE_OPTS --sub-langs $SUB_LANGS"
-    BASE_OPTS="$BASE_OPTS --sub-format vtt"
+    BASE_OPTS="$BASE_OPTS --sub-format $SUB_FORMAT"
 fi
 
 if [ "$get_cover" == "1" ]; then
