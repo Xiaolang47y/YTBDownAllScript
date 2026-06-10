@@ -344,6 +344,7 @@ total=${#links[@]}
 current=0
 success=0
 fail=0
+declare -a download_log
 
 for url in "${links[@]}"; do
     current=$((current + 1))
@@ -352,14 +353,38 @@ for url in "${links[@]}"; do
     info "[$current/$total] $url"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url"
+    # 获取视频标题
+    video_title=$(yt-dlp --get-title "$url" 2>/dev/null)
     
-    if [ $? -eq 0 ]; then
+    # 重试机制：最多重试3次，应对签名解析错误
+    max_retries=3
+    retry_count=0
+    download_success=false
+    
+    while [ $retry_count -lt $max_retries ]; do
+        if [ $retry_count -gt 0 ]; then
+            warn "第 $retry_count 次重试..."
+            sleep 5
+        fi
+        
+        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url"
+        
+        if [ $? -eq 0 ]; then
+            download_success=true
+            break
+        fi
+        
+        retry_count=$((retry_count + 1))
+    done
+    
+    if $download_success; then
         success=$((success + 1))
         info "✓ 下载成功"
+        download_log+=("$video_title | $url")
     else
         fail=$((fail + 1))
-        warn "✗ 下载失败"
+        warn "✗ 下载失败（已重试 $max_retries 次）"
+        download_log+=("[失败] $video_title | $url")
     fi
 done
 
@@ -379,4 +404,10 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}完成！成功: $success / 失败: $fail${NC}"
 echo -e "${GREEN}文件保存在: $SAVE_DIR${NC}"
 echo -e "${GREEN}========================================${NC}"
+echo ""
+echo -e "${GREEN}下载列表:${NC}"
+for i in "${!download_log[@]}"; do
+    echo "  $((i + 1)). ${download_log[$i]}"
+done
+echo ""
 ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|vtt|srt|jpg)$" | tail -10
