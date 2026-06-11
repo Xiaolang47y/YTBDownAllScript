@@ -264,6 +264,7 @@ for url in "${links[@]}"; do
     retry_count=0
     download_success=false
     video_title=""
+    last_error=""
     
     while [ $retry_count -lt $max_retries ]; do
         if [ $retry_count -gt 0 ]; then
@@ -271,17 +272,19 @@ for url in "${links[@]}"; do
             sleep 5
         fi
         
-        # 下载并输出文件名到变量
-        output=$(yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" --print "%(filename)s" "$url" 2>&1)
+        # 将错误信息保存到临时文件
+        tmp_err=$(mktemp)
+        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
         exit_code=$?
+        last_error=$(tail -5 "$tmp_err" 2>/dev/null)
+        rm -f "$tmp_err"
         
         if [ $exit_code -eq 0 ]; then
             download_success=true
-            # 从输出中提取文件名（最后一行）
-            downloaded_file=$(echo "$output" | grep -v "^\[" | grep -v "^WARNING\|^ERROR\|^$" | tail -1)
-            if [ -n "$downloaded_file" ]; then
-                # 从路径中提取文件名并移除扩展名
-                basename_file=$(basename "$downloaded_file")
+            # 从下载目录中查找最新视频文件提取标题
+            latest_file=$(ls -t "$SAVE_DIR"/*.mp4 "$SAVE_DIR"/*.mkv "$SAVE_DIR"/*.webm 2>/dev/null | head -1)
+            if [ -n "$latest_file" ]; then
+                basename_file=$(basename "$latest_file")
                 video_title="${basename_file%.*}"
             fi
             if [ -z "$video_title" ]; then
@@ -300,6 +303,11 @@ for url in "${links[@]}"; do
     else
         fail=$((fail + 1))
         warn "✗ 下载失败（已重试 $max_retries 次）"
+        if [ -n "$last_error" ]; then
+            echo "$last_error" | while IFS= read -r line; do
+                echo -e "  ${YELLOW}$line${NC}"
+            done
+        fi
         download_log+=("[失败] $video_title | $url")
     fi
 done
