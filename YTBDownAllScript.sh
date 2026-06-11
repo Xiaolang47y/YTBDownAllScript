@@ -353,16 +353,11 @@ for url in "${links[@]}"; do
     info "[$current/$total] $url"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    # 获取视频标题（使用 --print 替代已废弃的 --get-title）
-    video_title=$(yt-dlp --print title "$url" 2>/dev/null)
-    if [ -z "$video_title" ]; then
-        video_title="(未知标题)"
-    fi
-    
     # 重试机制：最多重试3次，应对签名解析错误
     max_retries=3
     retry_count=0
     download_success=false
+    video_title=""
     
     while [ $retry_count -lt $max_retries ]; do
         if [ $retry_count -gt 0 ]; then
@@ -370,10 +365,22 @@ for url in "${links[@]}"; do
             sleep 5
         fi
         
-        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url"
+        # 下载并输出文件名到变量
+        output=$(yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" --print "%(filename)s" "$url" 2>&1)
+        exit_code=$?
         
-        if [ $? -eq 0 ]; then
+        if [ $exit_code -eq 0 ]; then
             download_success=true
+            # 从输出中提取文件名（最后一行）
+            downloaded_file=$(echo "$output" | grep -v "^\[" | grep -v "^WARNING\|^ERROR\|^$" | tail -1)
+            if [ -n "$downloaded_file" ]; then
+                # 从路径中提取文件名并移除扩展名
+                basename_file=$(basename "$downloaded_file")
+                video_title="${basename_file%.*}"
+            fi
+            if [ -z "$video_title" ]; then
+                video_title="(未知标题)"
+            fi
             break
         fi
         
