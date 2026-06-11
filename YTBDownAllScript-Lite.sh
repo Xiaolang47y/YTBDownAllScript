@@ -259,8 +259,11 @@ for url in "${links[@]}"; do
     info "[$current/$total] $url"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     
-    # 获取视频标题
-    video_title=$(yt-dlp --get-title "$url" 2>/dev/null)
+    # 获取视频标题（使用 --print 替代已废弃的 --get-title）
+    video_title=$(yt-dlp --print title "$url" 2>/dev/null)
+    if [ -z "$video_title" ]; then
+        video_title="(未知标题)"
+    fi
     
     # 重试机制：最多重试3次，应对签名解析错误
     max_retries=3
@@ -315,5 +318,3 @@ echo -e "${GREEN}下载列表:${NC}"
 for i in "${!download_log[@]}"; do
     echo "  $((i + 1)). ${download_log[$i]}"
 done
-echo ""
-ls -lh "$SAVE_DIR" | grep -E "\.(mp4|mp3|vtt|srt|jpg)$" | tail -10
