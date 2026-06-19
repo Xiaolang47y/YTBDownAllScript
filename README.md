@@ -16,8 +16,6 @@ cookies.txt/Firefox/Chrome三种认证方式
 
 视频下载（MP4最佳画质）
 
-音频提取（MP3最高音质）
-
 VTT字幕下载（支持英/日/简体中文及组合）
 
 检测同目录是否存在vtt2srt.py 将逐句的VTT格式字幕统一转换为逐句的SRT字幕
