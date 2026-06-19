@@ -2,17 +2,16 @@
 
 # ============================================
 # YouTube 万能下载器 Lite V1.0
-# 适用于：已安装 yt-dlp / ffmpeg / python3 的环境
+# 适用于：已安装 yt-dlp / ffmpeg / python3 / deno 的环境
 # 
 # 功能说明：
 #   1. 支持 cookies.txt / Firefox / Chrome 三种认证方式
 #   2. 单链接下载 / 批量下载模式
 #   3. 视频下载（MP4 最佳画质）
-#   4. 音频提取（MP3 最高音质）
-#   5. VTT 字幕下载（支持英/日/简体中文及组合）
-#   6. VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
-#   7. 封面缩略图下载（JPG）
-#   8. 无限重试机制
+#   4. VTT 字幕下载（支持英/日/简体中文及组合）
+#   5. VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
+#   6. 封面缩略图下载（JPG）
+#   7. 无限重试机制
 # ============================================
 
 RED='\033[0;31m'
@@ -55,7 +54,6 @@ safe_option() {
     eval "$var_name=\"$input\""
 }
 
-clear
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}   YouTube 万能下载器 Lite V1.0        ${NC}"
 echo -e "${GREEN}   VTT字幕去重转SRT · 无限重试         ${NC}"
@@ -132,12 +130,6 @@ echo "下载视频？"
 echo "1) 是"
 echo "2) 否"
 safe_option "请选择 [1-2]: " get_video "12"
-
-echo ""
-echo "下载音频？"
-echo "1) 是"
-echo "2) 否"
-safe_option "请选择 [1-2]: " get_audio "12"
 
 echo ""
 echo "下载字幕？"
@@ -218,10 +210,6 @@ if [ "$get_video" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
-if [ "$get_audio" == "1" ]; then
-    BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
-fi
-
 # 下载字幕
 if [ "$get_sub" == "1" ] || [ "$get_sub" == "2" ]; then
     BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
@@ -233,7 +221,7 @@ if [ "$get_cover" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --write-thumbnail --convert-thumbnails jpg"
 fi
 
-if [ "$get_video" != "1" ] && [ "$get_audio" != "1" ]; then
+if [ "$get_video" != "1" ]; then
     BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
