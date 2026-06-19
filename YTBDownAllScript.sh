@@ -5,15 +5,14 @@
 # 适用于：Debian / Ubuntu / Linux Mint
 # 
 # 功能说明：
-#   1. 自动检测并安装依赖（yt-dlp/ffmpeg/python3）
+#   1. 自动检测并安装依赖（yt-dlp/ffmpeg/python3/deno）
 #   2. 支持 cookies.txt / Firefox / Chrome 三种认证方式
 #   3. 单链接下载 / 批量下载模式
 #   4. 视频下载（MP4 最佳画质）
-#   5. 音频提取（MP3 最高音质）
-#   6. VTT 字幕下载（支持英/日/简体中文及组合）
-#   7. VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
-#   8. 封面缩略图下载（JPG）
-#   9. 无限重试机制
+#   5. VTT 字幕下载（支持英/日/简体中文及组合）
+#   6. VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
+#   7. 封面缩略图下载（JPG）
+#   8. 无限重试机制
 # ============================================
 
 RED='\033[0;31m'
@@ -56,7 +55,6 @@ safe_option() {
     eval "$var_name=\"$input\""
 }
 
-clear
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}   YouTube 万能下载器 V1.0            ${NC}"
 echo -e "${GREEN}========================================${NC}"
@@ -65,7 +63,7 @@ echo ""
 # ============================================
 # 1. 检测 Python3 / pip
 # ============================================
-step "1/5 检测 Python 环境"
+step "1/6 检测 Python 环境"
 
 if ! command -v python3 &> /dev/null; then
     error "未找到 Python3"
@@ -96,12 +94,14 @@ fi
 info "✓ Python3 已就绪"
 
 # ============================================
-# 2. 安装 yt-dlp
+# 2. 安装 yt-dlp（仅检测pip安装）
 # ============================================
-step "2/5 安装 yt-dlp"
+step "2/6 安装 yt-dlp"
 
-if ! command -v yt-dlp &> /dev/null; then
-    warn "未找到 yt-dlp"
+if pip show yt-dlp &> /dev/null; then
+    info "✓ yt-dlp 已安装（pip）"
+else
+    warn "未找到 yt-dlp（pip）"
     echo "1) 安装 yt-dlp"
     echo "2) 退出"
     safe_option "请选择 [1-2]: " install_yt "12"
@@ -113,12 +113,11 @@ if ! command -v yt-dlp &> /dev/null; then
         exit 1
     fi
 fi
-info "✓ yt-dlp 已就绪"
 
 # ============================================
 # 3. 安装 ffmpeg
 # ============================================
-step "3/5 安装 ffmpeg"
+step "3/6 安装 ffmpeg"
 
 if ! command -v ffmpeg &> /dev/null; then
     warn "未找到 ffmpeg"
@@ -135,9 +134,32 @@ fi
 info "✓ ffmpeg 已就绪"
 
 # ============================================
-# 4. 安装 Chrome Cookie 依赖（可选）
+# 4. 安装 deno
 # ============================================
-step "4/5 安装 Chrome Cookie 依赖"
+step "4/6 安装 deno"
+
+if ! command -v deno &> /dev/null; then
+    warn "未找到 deno"
+    echo "1) 安装 deno"
+    echo "2) 跳过（可能导致YouTube签名解析失败）"
+    echo "3) 退出"
+    safe_option "请选择 [1-3]: " install_deno "123"
+    if [ "$install_deno" == "1" ]; then
+        curl -fsSL https://deno.land/install.sh | sh
+        export DENO_INSTALL="$HOME/.deno"
+        export PATH="$DENO_INSTALL/bin:$PATH"
+        info "✓ deno 安装完成"
+    elif [ "$install_deno" == "3" ]; then
+        exit 1
+    fi
+else
+    info "✓ deno 已就绪"
+fi
+
+# ============================================
+# 5. 安装 Chrome Cookie 依赖（可选）
+# ============================================
+step "5/6 安装 Chrome Cookie 依赖"
 
 echo "是否准备使用 Chrome Cookie？"
 echo "1) 是（将安装 secretstorage）"
@@ -155,9 +177,9 @@ if [ "$install_secret" == "1" ]; then
 fi
 
 # ============================================
-# 5. 基础设置
+# 6. 基础设置
 # ============================================
-step "5/5 基础设置"
+step "6/6 基础设置"
 
 DEFAULT_DIR="$(pwd)"
 read -p "保存目录（回车使用当前目录）: " SAVE_DIR
@@ -226,12 +248,6 @@ echo "下载视频？"
 echo "1) 是"
 echo "2) 否"
 safe_option "请选择 [1-2]: " get_video "12"
-
-echo ""
-echo "下载音频？"
-echo "1) 是"
-echo "2) 否"
-safe_option "请选择 [1-2]: " get_audio "12"
 
 echo ""
 echo "下载字幕？"
@@ -312,10 +328,6 @@ if [ "$get_video" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
-if [ "$get_audio" == "1" ]; then
-    BASE_OPTS="$BASE_OPTS --extract-audio --audio-format mp3 --audio-quality 0"
-fi
-
 # 下载字幕
 if [ "$get_sub" == "1" ] || [ "$get_sub" == "2" ]; then
     BASE_OPTS="$BASE_OPTS --write-subs --write-auto-subs"
@@ -327,7 +339,7 @@ if [ "$get_cover" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --write-thumbnail --convert-thumbnails jpg"
 fi
 
-if [ "$get_video" != "1" ] && [ "$get_audio" != "1" ]; then
+if [ "$get_video" != "1" ]; then
     BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
@@ -358,6 +370,7 @@ for url in "${links[@]}"; do
     retry_count=0
     download_success=false
     video_title=""
+    last_error=""
     
     while [ $retry_count -lt $max_retries ]; do
         if [ $retry_count -gt 0 ]; then
@@ -365,17 +378,19 @@ for url in "${links[@]}"; do
             sleep 5
         fi
         
-        # 下载并输出文件名到变量
-        output=$(yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" --print "%(filename)s" "$url" 2>&1)
+        # 将错误信息保存到临时文件
+        tmp_err=$(mktemp)
+        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
         exit_code=$?
+        last_error=$(tail -5 "$tmp_err" 2>/dev/null)
+        rm -f "$tmp_err"
         
         if [ $exit_code -eq 0 ]; then
             download_success=true
-            # 从输出中提取文件名（最后一行）
-            downloaded_file=$(echo "$output" | grep -v "^\[" | grep -v "^WARNING\|^ERROR\|^$" | tail -1)
-            if [ -n "$downloaded_file" ]; then
-                # 从路径中提取文件名并移除扩展名
-                basename_file=$(basename "$downloaded_file")
+            # 从下载目录中查找最新视频文件提取标题
+            latest_file=$(ls -t "$SAVE_DIR"/*.mp4 "$SAVE_DIR"/*.mkv "$SAVE_DIR"/*.webm 2>/dev/null | head -1)
+            if [ -n "$latest_file" ]; then
+                basename_file=$(basename "$latest_file")
                 video_title="${basename_file%.*}"
             fi
             if [ -z "$video_title" ]; then
@@ -394,6 +409,11 @@ for url in "${links[@]}"; do
     else
         fail=$((fail + 1))
         warn "✗ 下载失败（已重试 $max_retries 次）"
+        if [ -n "$last_error" ]; then
+            echo "$last_error" | while IFS= read -r line; do
+                echo -e "  ${YELLOW}$line${NC}"
+            done
+        fi
         download_log+=("[失败] $video_title | $url")
     fi
 done
