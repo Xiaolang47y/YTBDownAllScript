@@ -7,9 +7,8 @@
 # 功能说明：
 #   1. 支持 cookies.txt / Firefox / Chrome 三种认证方式
 #   2. 单链接下载 / 批量下载模式
-#   3. 视频下载（MP4 最佳画质）
-#   4. VTT 字幕下载（支持英/日/简体中文及组合）
-#   5. VTT 转 SRT 智能去重（解决 YouTube 实时字幕累积重复问题）
+#   4. 视频下载（MP4 最佳画质）
+#   5. 字幕下载（SRT/VTT 格式，支持英/日/简体中文及组合）
 #   6. 封面缩略图下载（JPG）
 #   7. 无限重试机制
 # ============================================
@@ -56,7 +55,7 @@ safe_option() {
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}   YouTube 万能下载器 Lite V1.0        ${NC}"
-echo -e "${GREEN}   VTT字幕去重转SRT · 无限重试         ${NC}"
+echo -e "${GREEN}   字幕下载 · 无限重试                ${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
@@ -133,44 +132,18 @@ safe_option "请选择 [1-2]: " get_video "12"
 
 echo ""
 echo "下载字幕？"
-echo "1) 是（VTT 格式，可自动转SRT去重）"
-echo "2) 是（直接下载 SRT 格式）"
+echo "1) 是（SRT 格式）"
+echo "2) 是（VTT 格式）"
 echo "3) 否"
 safe_option "请选择 [1-3]: " get_sub "123"
 
-if [ "$get_sub" == "1" ]; then
-    SUB_FORMAT="vtt"
-    echo ""
-    echo "字幕语言:"
-    echo "1) 英语 + 简体中文"
-    echo "2) 日语 + 简体中文"
-    echo "3) 仅简体中文"
-    echo "4) 仅英语"
-    echo "5) 仅日语"
-    safe_option "请输入 [1-5]: " lang_choice "12345"
-    
-    case $lang_choice in
-        1) SUB_LANGS="en,zh-Hans" ;;
-        2) SUB_LANGS="ja,zh-Hans" ;;
-        3) SUB_LANGS="zh-Hans" ;;
-        4) SUB_LANGS="en" ;;
-        5) SUB_LANGS="ja" ;;
-    esac
-    
-    # 检测vtt2srt.py是否存在
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    if [ -f "$SCRIPT_DIR/vtt2srt.py" ]; then
-        echo ""
-        echo "是否自动转换为SRT（去重）？"
-        echo "1) 是（推荐，去除实时字幕重复）"
-        echo "2) 否（保留原始VTT）"
-        safe_option "请选择 [1-2]: " convert_srt "12"
+if [ "$get_sub" == "1" ] || [ "$get_sub" == "2" ]; then
+    if [ "$get_sub" == "1" ]; then
+        SUB_FORMAT="srt"
     else
-        warn "未找到 vtt2srt.py，将保留原始VTT格式"
-        convert_srt="2"
+        SUB_FORMAT="vtt"
     fi
-elif [ "$get_sub" == "2" ]; then
-    SUB_FORMAT="srt"
+    
     echo ""
     echo "字幕语言:"
     echo "1) 英语 + 简体中文"
@@ -187,8 +160,6 @@ elif [ "$get_sub" == "2" ]; then
         4) SUB_LANGS="en" ;;
         5) SUB_LANGS="ja" ;;
     esac
-    
-    convert_srt="2"
 fi
 
 echo ""
@@ -207,7 +178,6 @@ BASE_OPTS="$COOKIE_OPT --no-check-certificates $RETRY_OPTS"
 if [ "$get_video" == "1" ]; then
     BASE_OPTS="$BASE_OPTS --format bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
     BASE_OPTS="$BASE_OPTS --merge-output-format mp4"
-    BASE_OPTS="$BASE_OPTS --embed-metadata"
 fi
 
 # 下载字幕
@@ -225,10 +195,7 @@ if [ "$get_video" != "1" ]; then
     BASE_OPTS="$BASE_OPTS --skip-download"
 fi
 
-info "重试: 无限重试 · 字幕: VTT 原样下载"
-if [ "$get_sub" == "1" ] && [ "$convert_srt" == "1" ]; then
-    info "字幕转换: 下载后将统一转换为去重SRT"
-fi
+info "重试: 无限重试 · 字幕: ${SUB_FORMAT:-无}"
 echo ""
 
 # ============================================
@@ -300,17 +267,6 @@ for url in "${links[@]}"; do
     fi
 done
 
-# ============================================
-# 统一转换VTT到SRT（去重）
-# ============================================
-if [ "$get_sub" == "1" ] && [ "$convert_srt" == "1" ]; then
-    step "统一转换所有VTT字幕为SRT（去重）"
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    python3 "$SCRIPT_DIR/vtt2srt.py" "$SAVE_DIR"
-    info "清理原始VTT文件"
-    find "$SAVE_DIR" -name "*.vtt" -type f -delete
-fi
-
 echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}完成！成功: $success / 失败: $fail${NC}"
@@ -321,3 +277,4 @@ echo -e "${GREEN}下载列表:${NC}"
 for i in "${!download_log[@]}"; do
     echo "  $((i + 1)). ${download_log[$i]}"
 done
+
