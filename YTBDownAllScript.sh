@@ -93,21 +93,30 @@ fi
 info "✓ Python3 已就绪"
 
 # ============================================
-# 2. 安装 yt-dlp（仅检测pip安装）
+# 2. 安装 yt-dlp（使用pip安装，确保优先于apt版本）
 # ============================================
 step "2/6 安装 yt-dlp"
 
+# 确保 pip 安装的路径在 PATH 中优先
+export PATH="$HOME/.local/bin:$PATH"
+
+# 检查 pip 安装的 yt-dlp
 if pip show yt-dlp &> /dev/null; then
     info "✓ yt-dlp 已安装（pip）"
+    # 确保使用 pip 版本
+    YTDLP_PATH="$HOME/.local/bin/yt-dlp"
+    if [ -f "$YTDLP_PATH" ]; then
+        info "✓ 将使用 pip 安装的 yt-dlp: $YTDLP_PATH"
+    fi
 else
     warn "未找到 yt-dlp（pip）"
-    echo "1) 安装 yt-dlp"
+    echo "1) 安装 yt-dlp（pip）"
     echo "2) 退出"
     safe_option "请选择 [1-2]: " install_yt "12"
     if [ "$install_yt" == "1" ]; then
         pip install -U "yt-dlp[default]" --break-system-packages 2>/dev/null
-        export PATH="$HOME/.local/bin:$PATH"
         info "✓ yt-dlp 安装完成"
+        info "✓ 已设置 PATH 优先使用 pip 版本"
     else
         exit 1
     fi
@@ -219,25 +228,15 @@ case $auth_choice in
 esac
 
 # ============================================
-# 下载模式
+# 批量下载
 # ============================================
 echo ""
-echo "下载模式:"
-echo "1) 单个链接"
-echo "2) 批量下载"
-safe_option "请选择 [1-2]: " batch_mode "12"
-
+echo "请输入链接列表（每行一个，空行结束）:"
 links=()
-if [ "$batch_mode" == "2" ]; then
-    echo "请输入链接列表（每行一个，空行结束）:"
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && break
-        links+=("$line")
-    done
-else
-    safe_read "👉 请输入链接: " single_url
-    links+=("$single_url")
-fi
+while IFS= read -r line; do
+    [[ -z "$line" ]] && break
+    links+=("$line")
+done
 
 # ============================================
 # 下载选项
@@ -347,7 +346,8 @@ for url in "${links[@]}"; do
         
         # 将错误信息保存到临时文件
         tmp_err=$(mktemp)
-        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
+        # 使用 pip 安装的 yt-dlp（优先于 apt 版本）
+        "$HOME/.local/bin/yt-dlp" $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
         exit_code=$?
         last_error=$(tail -5 "$tmp_err" 2>/dev/null)
         rm -f "$tmp_err"
