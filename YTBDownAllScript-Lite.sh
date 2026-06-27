@@ -101,25 +101,15 @@ case $auth_choice in
 esac
 
 # ============================================
-# 下载模式
+# 批量下载
 # ============================================
 echo ""
-echo "下载模式:"
-echo "1) 单个链接"
-echo "2) 批量下载"
-safe_option "请选择 [1-2]: " batch_mode "12"
-
+echo "请输入链接列表（每行一个，空行结束）:"
 links=()
-if [ "$batch_mode" == "2" ]; then
-    echo "请输入链接列表（每行一个，空行结束）:"
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && break
-        links+=("$line")
-    done
-else
-    safe_read "👉 请输入链接: " single_url
-    links+=("$single_url")
-fi
+while IFS= read -r line; do
+    [[ -z "$line" ]] && break
+    links+=("$line")
+done
 
 # ============================================
 # 下载选项
@@ -229,7 +219,8 @@ for url in "${links[@]}"; do
         
         # 将错误信息保存到临时文件
         tmp_err=$(mktemp)
-        yt-dlp $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
+        # 使用 pip 安装的 yt-dlp（优先于 apt 版本）
+        "$HOME/.local/bin/yt-dlp" $BASE_OPTS -o "%(title)s.%(ext)s" "$url" 2>"$tmp_err"
         exit_code=$?
         last_error=$(tail -5 "$tmp_err" 2>/dev/null)
         rm -f "$tmp_err"
