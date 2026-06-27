@@ -10,8 +10,6 @@ Youtube视频+中英日字幕+封面TUI下载脚本。
 
 cookies.txt/Firefox/Chrome三种认证方式
 
-单链接下载/批量下载模式
-
 视频下载（MP4最佳画质）
 
 VTT/SRT字幕下载（支持英/日/简体中文）
